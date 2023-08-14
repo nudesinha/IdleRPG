@@ -39,13 +39,13 @@ class Crates(commands.Cog):
         self.emotes = namedtuple(
             "CrateEmotes", "common uncommon rare magic legendary item mystery"
         )(
-            common="<:Common:896715561520750632>",
-            uncommon="<:Uncommon:896715561399091263>",
-            rare="<:Rare:896715561302642709>",
-            magic="<a:MagicAni:896715562078593044>",
-            legendary="<a:LegendaryAni:896715561973739530>",
+            common="<:F_common:1139514874016309260>",
+            uncommon="<:F_uncommon:1139514875828252702>",
+            rare="<:F_rare:1139514880517484666>",
+            magic="<:F_Magic:1139514865174720532>",
+            legendary="<:F_Legendary:1139514868400132116>",
             item="<a:ItemAni:896715561550110721>",
-            mystery="<a:MysteryAni:879413330069028914>",
+            mystery="<:F_mystspark:1139521536320094358>",
         )
 
     @has_char()

@@ -18,11 +18,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import logging
 import sys
 
-import orjson
 
-# Ugly patch to use orjson globally
-sys.modules["json"] = orjson
-
+import json
 import asyncio
 import os
 
@@ -43,7 +40,7 @@ if len(sys.argv) != 6:
 os.environ["TZ"] = "UTC"
 
 # Sharding stuff
-shard_ids = orjson.loads(sys.argv[1])
+shard_ids = json.loads(sys.argv[1])
 shard_count = int(sys.argv[2])
 cluster_id = int(sys.argv[3])
 cluster_count = int(sys.argv[4])
@@ -80,7 +77,9 @@ if __name__ == "__main__":
     log.addHandler(file_handler(cluster_id))
 
     try:
-        with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
-            runner.run(main())
+        loop = uvloop.new_event_loop()
+        asyncio.set_event_loop(loop)
+        runner = loop.run_until_complete(main())
     except KeyboardInterrupt:
         pass
+

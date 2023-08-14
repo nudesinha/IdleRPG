@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 
 import discord
+import io
 
 from aiohttp import ContentTypeError
 from discord.ext import commands
@@ -83,8 +84,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             name = name.content
         else:
             if not await ctx.confirm(
-                _(
-                    """\
+                    _(
+                        """\
 **Please note that with the creation of a character, you agree to these rules:**
 1) Only up to two characters per individual
 2) No abusing or benefiting from bugs or exploits
@@ -92,7 +93,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
 4) Trading in-game items or currency for real money or items directly comparable to currency is forbidden
 
 IdleRPG is a global bot, your characters are valid everywhere"""
-                )
+                    )
             ):
                 return await ctx.send(_("Creation of your character cancelled."))
         if len(name) > 2 and len(name) < 21:
@@ -229,31 +230,35 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             badges = []
 
         async with self.bot.trusted_session.post(
-            f"{self.bot.config.external.okapi_url}/api/genprofile",
-            json={
-                "name": profile["name"],
-                "color": color,
-                "image": profile["background"],
-                "race": profile["race"],
-                "classes": profile["class"],
-                "class_icons": icons,
-                "left_hand_item": left_hand,
-                "right_hand_item": right_hand,
-                "level": f"{rpgtools.xptolevel(profile['xp'])}",
-                "guild_rank": guild_rank,
-                "guild_name": profile["guild_name"],
-                "money": f"{profile['money']}",
-                "pvp_wins": f"{profile['pvpwins']}",
-                "marriage": marriage,
-                "god": profile["god"] or _("No God"),
-                "adventure_name": adventure_name,
-                "adventure_time": adventure_time,
-                "badges": badges,
-            },
-            headers={"Authorization": self.bot.config.external.okapi_token},
+                f"{self.bot.config.external.okapi_url}/api/genprofile",
+                json={
+                    "name": profile["name"],
+                    "color": color,
+                    "image": profile["background"],
+                    "race": profile["race"],
+                    "classes": profile["class"],
+                    "class_icons": icons,
+                    "left_hand_item": left_hand,
+                    "right_hand_item": right_hand,
+                    "level": f"{rpgtools.xptolevel(profile['xp'])}",
+                    "guild_rank": guild_rank,
+                    "guild_name": profile["guild_name"],
+                    "money": f"{profile['money']}",
+                    "pvp_wins": f"{profile['pvpwins']}",
+                    "marriage": marriage,
+                    "god": profile["god"] or _("No God"),
+                    "adventure_name": adventure_name,
+                    "adventure_time": adventure_time,
+                    "badges": badges,
+                },
+                headers={"Authorization": self.bot.config.external.okapi_token},
         ) as req:
             if req.status == 200:
+
                 img = await req.text()
+
+
+
             else:
                 # Error, means try reading the response JSON error
                 try:
@@ -272,7 +277,15 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 except Exception:
                     return await ctx.send(_("Unexpected error when generating image."))
 
-        await ctx.send(embed=discord.Embed(colour=embed_color).set_image(url=img))
+            async with self.bot.trusted_session.get(img) as resp:
+                bytebuffer = await resp.read()
+                if resp.status != 200:
+                    return await ctx.send("Error failed to fetch image")
+
+        await ctx.send(
+            _("Your Profile:"),
+            file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
+        )
 
     @commands.command(
         aliases=["p2", "pp"], brief=_("View someone's profile differently")
@@ -516,11 +529,11 @@ IdleRPG is a global bot, your characters are valid everywhere"""
     @commands.command(aliases=["inv", "i"], brief=_("Show your gear items"))
     @locale_doc
     async def inventory(
-        self,
-        ctx,
-        itemtype: str | None = "All",
-        lowest: IntFromTo(0, 101) = 0,
-        highest: IntFromTo(0, 101) = 101,
+            self,
+            ctx,
+            itemtype: str | None = "All",
+            lowest: IntFromTo(0, 101) = 0,
+            highest: IntFromTo(0, 101) = 101,
     ):
         _(
             """`[itemtype]` - The type of item to show; defaults to all items
@@ -780,8 +793,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 else:
                     if len(olditems) < 2:
                         if (
-                            item["hand"] != "any"
-                            and olditems[0]["hand"] == item["hand"]
+                                item["hand"] != "any"
+                                and olditems[0]["hand"] == item["hand"]
                         ):
                             await conn.execute(
                                 'UPDATE inventory SET "equipped"=False WHERE'
@@ -790,7 +803,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                             )
                             put_off = [olditems[0]["id"]]
                     elif (
-                        item["hand"] == "left" or item["hand"] == "right"
+                            item["hand"] == "left" or item["hand"] == "right"
                     ) and num_any < 2:
                         item_to_remove = [
                             i for i in olditems if i["hand"] == item["hand"]
@@ -920,7 +933,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             max_ = item[stat] + 5
             main_hand = item["hand"]
             if (main > 40 and main_hand != "both") or (
-                main > 81 and main_hand == "both"
+                    main > 81 and main_hand == "both"
             ):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(
@@ -989,10 +1002,10 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 )
 
         if not await ctx.confirm(
-            _(
-                "Are you sure you want to upgrade this item: {item}? It will cost"
-                " **${pricetopay}**."
-            ).format(item=item["name"], pricetopay=pricetopay)
+                _(
+                    "Are you sure you want to upgrade this item: {item}? It will cost"
+                    " **${pricetopay}**."
+                ).format(item=item["name"], pricetopay=pricetopay)
         ):
             return await ctx.send(_("Weapon upgrade cancelled."))
         if not await checks.has_money(self.bot, ctx.author.id, pricetopay):
@@ -1037,7 +1050,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
     @commands.command(brief=_("Give someone money"))
     @locale_doc
     async def give(
-        self, ctx, money: IntFromTo(1, 100_000_000), other: MemberWithCharacter
+            self, ctx, money: IntFromTo(1, 100_000_000), other: MemberWithCharacter
     ):
         _(
             """`<money>` - The amount of money to give to the other person, cannot exceed 100,000,000
@@ -1138,10 +1151,10 @@ IdleRPG is a global bot, your characters are valid everywhere"""
               - Your marriage and children"""
         )
         if not await ctx.confirm(
-            _(
-                "Are you absolutely sure you want to delete your character? React in"
-                " the next 30 seconds to confirm.\n**This cannot be undone.**"
-            )
+                _(
+                    "Are you absolutely sure you want to delete your character? React in"
+                    " the next 30 seconds to confirm.\n**This cannot be undone.**"
+                )
         ):
             return await ctx.send(_("Cancelled deletion of your character."))
         async with self.bot.pool.acquire() as conn:

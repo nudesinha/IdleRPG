@@ -970,8 +970,8 @@ This command is in an alpha-stage, which means bugs are likely to happen. Play a
             return await ctx.send(_("You are too poor."))
         result = random.choice(
             [
-                ("heads", "<:heads:437981551196897281>"),
-                ("tails", "<:tails:437981602518138890>"),
+                ("heads", "<:heads:988811246423904296>"),
+                ("tails", "<:tails:988811244762980413>"),
             ]
         )
         if result[0] == side:

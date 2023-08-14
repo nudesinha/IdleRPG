@@ -88,22 +88,22 @@ class GlobalEvents(commands.Cog):
             title="Thanks for adding me!",
             colour=0xEEC340,
             description=(
-                "Hi! I am **IdleRPG**, a Discord Bot by `Adrian#1337`.\nI simulate a"
+                "Hi! I am **Fable**, a IdleRPG Discord Bot Modified by Lunar\nI simulate a"
                 " whole Roleplay with everything it needs!\n\nVisit"
-                f" **{self.bot.BASE_URL}** for a documentation on all my commands."
+                f" **{self.bot.BASE_URL}** for a documentation on some commands."
                 " :innocent:\nTo get started, type"
                 f" `{self.bot.config.bot.global_prefix}create`.\n\nA tutorial can be found"
                 f" on **{self.bot.BASE_URL}/tutorial**.\n\nDon't like my prefix?"
                 f" `{self.bot.config.bot.global_prefix}settings prefix` changes it.\n\nNot"
                 f" English? `{self.bot.config.bot.global_prefix}language` and"
                 f" `{self.bot.config.bot.global_prefix}language set` may include"
-                " yours!\n\nHave fun! :wink:"
+                " yours!\n\nHave fun! :wink: - Source by IdleRPG"
             ),
         )
 
-        embed.set_image(url=f"{self.bot.BASE_URL}/IdleRPG.png")
+        embed.set_image(url=f"https://i.imgur.com/CJUkHhJ.png")
         embed.set_footer(
-            text=f"IdleRPG Version {self.bot.version}",
+            text=f"Fable Version {self.bot.version}",
             icon_url=self.bot.user.display_avatar.url,
         )
         channels = list(

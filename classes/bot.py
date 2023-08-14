@@ -33,6 +33,8 @@ from discord import AllowedMentions
 from discord.ext import commands
 from discord.ext.commands.cooldowns import BucketType
 from discord.http import handle_message_parameters
+from json import JSONDecoder, JSONEncoder
+
 from redis import asyncio as aioredis
 
 from classes.bucket_cooldown import Cooldown, CooldownMapping
@@ -79,7 +81,7 @@ class Bot(commands.AutoShardedBot):
         self.make_linecount()
         self.all_prefixes = {}
         self.activity = discord.Game(
-            name=f"IdleRPG v{self.version}"
+            name=f"Fable v{self.version}"
             if self.config.bot.is_beta
             else self.BASE_URL
         )
@@ -99,6 +101,8 @@ class Bot(commands.AutoShardedBot):
         self.donator_cooldown = CooldownMapping(
             Cooldown(3, 3, 1, 2, commands.BucketType.user)
         )
+
+
 
     def __repr__(self):
         return "<Bot>"
@@ -765,6 +769,9 @@ class Bot(commands.AutoShardedBot):
             armor += 4
         elif race == "Jikill":
             damage += 4
+        elif race == "Shadeborn":
+            damage += -1
+            armor += 5
         return damage, armor
 
     async def log_transaction(self, ctx, from_, to, subject, data, conn=None):

@@ -39,6 +39,8 @@ class Races(commands.Cog):
               - Human: +2 defense, +2 damage
               - Elf: +1 defense, +3 damage
               - Jikill: +0 defense, +4 damage
+              - Shadeborn: +5 defense, -1 damage
+              
 
             By default, you are a human.
 
@@ -62,6 +64,7 @@ class Races(commands.Cog):
                     " up, even when some of their friends already died. Their rage and"
                     " hate against enemies makes them attack efficient and"
                     " concentrated. Their attack and defense skills are pretty equal."
+                    " +2 DEF +2 ATK"
                 ),
                 color=self.bot.config.game.primary_colour,
             ),
@@ -72,6 +75,7 @@ class Races(commands.Cog):
                     " small, they can deal a lot of damage with their self-crafted"
                     " equipment. Because of their reflexes, they have more defense than"
                     " attack. Want an ale?"
+                    " +3 DEF +1 ATK"
                 ),
                 color=self.bot.config.game.primary_colour,
             ),
@@ -83,6 +87,7 @@ class Races(commands.Cog):
                     " to nature made them good friends of the wild spirits which they"
                     " can call for help and protection. They have more attack than"
                     " defense."
+                    " +1 DEF +3 ATK"
                 ),
                 color=self.bot.config.game.primary_colour,
             ),
@@ -95,6 +100,7 @@ class Races(commands.Cog):
                     " they can't avoid a fight, then they have mostly no real damage,"
                     " only a bit, but a huge armour. Who cares about the damage as long"
                     " as you don't die?"
+                    " +4 DEF +0 ATK"
                 ),
                 color=self.bot.config.game.primary_colour,
             ),
@@ -105,11 +111,22 @@ class Races(commands.Cog):
                     " their face, which lets them have a big and huge forehead, big"
                     " enough for their brain which can kill enemies. These sensitive"
                     " creatures are easily knocked out."
+                    " +0 DEF +4 ATK"
+                ),
+                color=self.bot.config.game.primary_colour,
+            ),
+            discord.Embed(
+                title=_("Shadeborn"),
+                description=_(
+                    " Shadeborn possess a shadowy nature that allows them to"
+                    " possess inhuman defense, though their attacks might be"
+                    "  slightly slower due to their ethereal nature."
+                    " +5 DEF -1 ATK"
                 ),
                 color=self.bot.config.game.primary_colour,
             ),
         ]
-        races = ["Human", "Dwarf", "Elf", "Orc", "Jikill"]
+        races = ["Human", "Dwarf", "Elf", "Orc", "Jikill", "Shadeborn"]
         questions = {
             "Human": {
                 "question": _("One of my biggest regrets is..."),
@@ -152,6 +169,15 @@ class Races(commands.Cog):
                     _("...spiritual pain"),
                     _("...extreme temperatures."),
                     _("...strange and powerful smells."),
+                ],
+            },
+            "Shadeborn": {
+                "question": _("Embrace Shadows or Ethereal?"),
+                "answers": [
+                    _("...Shadows"),
+                    _("...Ethereal"),
+                    _("...Both"),
+                    _("...Suffering"),
                 ],
             },
         }

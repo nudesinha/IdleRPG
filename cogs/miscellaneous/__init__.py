@@ -26,7 +26,6 @@ import sys
 from collections import defaultdict, deque
 from functools import partial
 
-import aiowiki
 import discord
 import distro
 import humanize
@@ -49,13 +48,7 @@ class Miscellaneous(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.talk_context = defaultdict(partial(deque, maxlen=3))
-        asyncio.create_task(self.make_wikis())
 
-    async def make_wikis(self):
-        self.bot.wikipedia = aiowiki.Wiki.wikipedia("en", session=self.bot.session)
-        self.bot.idlewiki = aiowiki.Wiki(
-            "https://wiki.idlerpg.xyz/api.php", session=self.bot.session
-        )
 
     async def get_imgur_url(self, url: str):
         async with self.bot.session.post(
@@ -296,12 +289,12 @@ Even $1 can help us.
         _(
             """Sends you the link to join the official IdleRPG Support server.
 
-            Use this [backup link](https://discord.gg/MSBatf6) in case the above does not work."""
+            Use this [backup link](Removed) in case the above does not work."""
         )
         await ctx.send(
             _(
-                "Got problems or feature requests? Looking for people to play with?"
-                " Join the support server:\nhttps://support.idlerpg.xyz"
+                "Got problems or feature requests?"
+                " Message the custom dev:\nitslunar."
             )
         )
 
@@ -345,7 +338,7 @@ Even $1 can help us.
             colour=0xB8BBFF,
             url=self.bot.BASE_URL,
             description=_(
-                "Official Support Server Invite: https://support.idlerpg.xyz"
+                "---"
             ),
         )
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
