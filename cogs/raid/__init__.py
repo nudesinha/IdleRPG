@@ -1030,48 +1030,48 @@ The hamburger will be vulnerable in 15 Minutes
 
     @is_god()
     @raid_free()
-    @commands.command(hidden=True, brief=_("Starts Lyx' raid"))
-    async def lyxspawn(self, ctx):
-        """[Lyx only] Starts a raid."""
+    @commands.command(hidden=True, brief=_("Starts Aurelia' trial"))
+    async def goodspawn(self, ctx):
+        """[Aurelia only] Starts a Trial."""
         await self.set_raid_timer()
 
         view = JoinView(
-            Button(style=ButtonStyle.primary, label="Join the raid!"),
-            message=_("You joined the raid."),
+            Button(style=ButtonStyle.primary, label="Join the trial!"),
+            message=_("You joined the trial."),
             timeout=60 * 15,
         )
 
         await ctx.send(
             """
-Lyx has awoken, he challenges his followers.
+Aurelia has awoken, she challenges her followers.
 Stare the dawn.
 Face your Ouroboros.
 Are you worthy? Can your soul handle the force of your sins?
 
-**Only followers of Lyx may join.**""",
+**Only followers of Aurelia may join.**""",
             file=discord.File("assets/other/lyx.webp"),
             view=view,
         )
         if not self.bot.config.bot.is_beta:
             await asyncio.sleep(300)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 10 minutes**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 10 minutes**")
             await asyncio.sleep(300)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 5 minutes**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 5 minutes**")
             await asyncio.sleep(180)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 2 minutes**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 2 minutes**")
             await asyncio.sleep(60)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 1 minute**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 1 minute**")
             await asyncio.sleep(30)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 30 seconds**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 30 seconds**")
             await asyncio.sleep(20)
-            await ctx.send("**Lyx and his Ouroboros will be visible in 10 seconds**")
+            await ctx.send("**Aurelia and her Ouroboros will be visible in 10 seconds**")
         else:
             await asyncio.sleep(60)
 
         view.stop()
 
         await ctx.send(
-            "**Lyx and his Ouroboros are visible! Fetch participant data... Hang on!**"
+            "**Aurelia and her Ouroboros are visible! Fetch participant data... Hang on!**"
         )
 
         async with self.bot.pool.acquire() as conn:
@@ -1083,7 +1083,7 @@ Are you worthy? Can your soul handle the force of your sins?
                             'SELECT * FROM profile WHERE "user"=$1;', u.id
                         )
                     )
-                    or profile["god"] != "Lyx"
+                    or profile["god"] != "Aurelia"
                 ):
                     continue
                 raid.append(u)
@@ -1095,13 +1095,16 @@ Are you worthy? Can your soul handle the force of your sins?
             if time == "day":
                 em = discord.Embed(
                     title="It turns day",
-                    description="The sun rises and Ouroboros seems visibly weaker.",
+                    description="As the sun's golden rays grace the horizon, a sense of renewal spreads across the "
+                                "land. The world awakens from its slumber, bathed in warmth and hope.",
                     colour=0xFFB900,
                 )
             else:
                 em = discord.Embed(
                     title="It turns night",
-                    description="Nightfalls. Ouroboros seems visibly stronger.",
+                    description="The world embraces the embrace of the night, shrouded in mystery and quietude. The "
+                                "stars twinkle like distant promises, and the nocturnal creatures begin their "
+                                "whispered symphony.",
                     colour=0xFFB900,
                 )
             em.set_thumbnail(url=f"{self.bot.BASE_URL}/image/lyx.png")
@@ -1112,28 +1115,28 @@ Are you worthy? Can your soul handle the force of your sins?
                 event = random.choice(
                     [
                         {
-                            "text": "Your Ouroboros lurks close.",
-                            "win": 60,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t face your fears. Ouroboros has defeated you.",
-                        },
-                        {
-                            "text": "Your Ouroboros is chasing you, will you escape?",
-                            "win": 50,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
-                        },
-                        {
-                            "text": "Your Ouroboros catches you.",
-                            "win": 20,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
-                        },
-                        {
-                            "text": "Lyx has your back, but does Ouroboros?",
+                            "text": "Extend a Healing Hand",
                             "win": 80,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
+                            "win_text": "Your compassionate efforts have brought healing and solace. Astraea smiles "
+                                        "upon you.",
+                            "lose_text": "Despite your intentions, your healing touch falters. Astraea's grace eludes "
+                                         "you.",
+                        },
+                        {
+                            "text": "Ease Emotional Burdens",
+                            "win": 70,
+                            "win_text": "Through your empathetic words, you mend fractured souls. Astraea's favor "
+                                        "shines on you.",
+                            "lose_text": "Your words fall short, unable to mend the hearts before you. Astraea's "
+                                         "blessing slips away.",
+                        },
+                        {
+                            "text": "Kindness in Action",
+                            "win": 60,
+                            "win_text": "Your selfless actions spread ripples of kindness. Astraea's radiant gaze "
+                                        "embraces you.",
+                            "lose_text": "Your attempts at kindness don't fully resonate. Astraea's warmth remains "
+                                         "distant.",
                         },
                     ]
                 )
@@ -1141,28 +1144,20 @@ Are you worthy? Can your soul handle the force of your sins?
                 event = random.choice(
                     [
                         {
-                            "text": "Your Ouroboros lurks close.",
-                            "win": 20,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
+                            "text": "Guiding Light of Compassion",
+                            "win": 70,
+                            "win_text": "Amidst the tranquil night, your compassion brings light to dark corners. "
+                                        "Astraea's approval graces you.",
+                            "lose_text": "Your efforts to bring solace in the night are met with challenges. Astraea's "
+                                         "light evades you.",
                         },
                         {
-                            "text": "Your Ouroboros is chasing you, will you escape?",
-                            "win": 30,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
-                        },
-                        {
-                            "text": "Your Ouroboros catches you.",
-                            "win": 1,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t face your fears. Ouroboros has defeated you.",
-                        },
-                        {
-                            "text": "Lyx has your back, but does Ouroboros?",
-                            "win": 45,
-                            "win_text": "After your trial of fears, Ouroboros deems you worthy.",
-                            "loose_text": "You couldn’t hide your fears. Ouroboros has defeated you.",
+                            "text": "Healing Moon's Embrace",
+                            "win": 75,
+                            "win_text": "Under the moon's serenity, your healing touch is magnified. Astraea's "
+                                        "presence envelops you.",
+                            "lose_text": "Your attempts to heal are hindered by unseen forces. Astraea's touch remains "
+                                         "elusive.",
                         },
                     ]
                 )
@@ -1185,7 +1180,7 @@ Are you worthy? Can your soul handle the force of your sins?
 
         winner = raid[0]
         await ctx.send(
-            f"Out of the strongest survivors to escape Ouroboros fangs, {winner.mention} has joined Lyx in the cosmos. They find a legendary crate amongst the stars."
+            f"Out of the strongest survivors to escape Ouroboros fangs, {winner.mention} has joined Aurelia in the cosmos. They find a legendary crate amongst the stars."
         )
         async with self.bot.pool.acquire() as conn:
             await conn.execute(
@@ -1196,9 +1191,9 @@ Are you worthy? Can your soul handle the force of your sins?
 
     @is_god()
     @raid_free()
-    @commands.command(hidden=True, brief=_("Start a Monox raid"))
-    async def monoxspawn(self, ctx):
-        """[Monox only] Starts a raid."""
+    @commands.command(hidden=True, brief=_("Start a Drakath raid"))
+    async def chaosspawn(self, ctx):
+        """[Drakath only] Starts a raid."""
         await self.set_raid_timer()
 
         boss_hp = random.randint(500, 1000)
@@ -1210,34 +1205,34 @@ Are you worthy? Can your soul handle the force of your sins?
         )
 
         em = discord.Embed(
-            title="Raid the Cheese Facility",
+            title="Raid the Void",
             description=f"""
-Monox asks his gang to raid a top secret facility in Indonesia to steal the world's creamiest cheese.
+In Drakath's name, unleash the storm,
+Raiders of chaos, in shadows swarm.
+No order, no restraint, just untamed glee,
+Drakath's chaos shall set us free.
 
-However, there is a boss, Mathis Mensing, who needs to be defeat for us to acquire the cheese.
-Thankfully, Monox has given all of us critical sausages to attack with (don't mention Mensing's gun).
+Eclipse the Void Conqueror has {boss_hp} HP and will be vulnerable in 15 Minutes
 
-Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
-
-**Only followers of Monox may join.**""",
+**Only followers of Drakath may join.**""",
             color=0xFFB900,
         )
-        em.set_image(url=f"{self.bot.BASE_URL}/image/matmen.png")
+        em.set_image(url=f"https://i.imgur.com/YoszTlc.png")
         await ctx.send(embed=em, view=view)
 
         if not self.bot.config.bot.is_beta:
             await asyncio.sleep(300)
-            await ctx.send("**The raid on the facility will start in 10 minutes**")
+            await ctx.send("**The raid on the void will start in 10 minutes**")
             await asyncio.sleep(300)
-            await ctx.send("**The raid on the facility will start in 5 minutes**")
+            await ctx.send("**The raid on the void will start in 5 minutes**")
             await asyncio.sleep(180)
-            await ctx.send("**The raid on the facility will start in 2 minutes**")
+            await ctx.send("**The raid on the void will start in 2 minutes**")
             await asyncio.sleep(60)
-            await ctx.send("**The raid on the facility will start in 1 minute**")
+            await ctx.send("**The raid on the void will start in 1 minute**")
             await asyncio.sleep(30)
-            await ctx.send("**The raid on the facility will start in 30 seconds**")
+            await ctx.send("**The raid on the void will start in 30 seconds**")
             await asyncio.sleep(20)
-            await ctx.send("**The raid on the facility will start in 10 seconds**")
+            await ctx.send("**The raid on the void will start in 10 seconds**")
             await asyncio.sleep(10)
         else:
             await asyncio.sleep(60)
@@ -1257,10 +1252,10 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
                             'SELECT * FROM profile WHERE "user"=$1;', u.id
                         )
                     )
-                    or profile["god"] != "Monox"
+                    or profile["god"] != "Drakath"
                 ):
                     continue
-                raid[u] = 250
+                raid[u] = 25000
 
         await ctx.send("**Done getting data!**")
 
@@ -1276,19 +1271,19 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
             raid[target] -= dmg
             if raid[target] > 0:
                 em = discord.Embed(
-                    title="Mensing shoots!",
+                    title="Eclipse attacks!",
                     description=f"{target} now has {raid[target]} HP!",
                     colour=0xFFB900,
                 )
             else:
                 em = discord.Embed(
-                    title="Mensing hits critical!",
+                    title="Eclipse hits critical!",
                     description=f"{target} died!",
                     colour=0xFFB900,
                 )
             em.add_field(name="Damage", value=dmg)
             em.set_author(name=str(target), icon_url=target.display_avatar.url)
-            em.set_thumbnail(url=f"{self.bot.BASE_URL}/image/matmen.png")
+            em.set_thumbnail(url=f"https://i.imgur.com/YS4A6R7.png")
             await ctx.send(embed=em)
             if raid[target] <= 0:
                 del raid[target]
@@ -1301,12 +1296,12 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
                 target = random.choice(list(raid.keys()))
                 raid[target] += 100
                 em = discord.Embed(
-                    title=f"{target} uses Russian Lemon!",
+                    title=f"{target} uses Chaos Restore!",
                     description=f"It's super effective!\n{target} now has {raid[target]} HP!",
                     colour=0xFFB900,
                 )
                 em.set_author(name=str(target), icon_url=target.display_avatar.url)
-                em.set_thumbnail(url=f"{self.bot.BASE_URL}/image/lemon.png")
+                em.set_thumbnail(url=f"https://i.imgur.com/md5dWFk.png")
                 await ctx.send(embed=em)
 
             # NIC traps might explode
@@ -1321,11 +1316,11 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
                     if raid[target] <= 0:
                         del raid[target]
                 em = discord.Embed(
-                    title="Mensing blows up NIC traps!",
+                    title="Eclipse prepares a void pulse!",
                     description=f"It's super effective!\n{', '.join(str(u) for u in targets)} take 100 damage!",
                     colour=0xFFB900,
                 )
-                em.set_thumbnail(url=f"{self.bot.BASE_URL}/image/matmen.png")
+                em.set_thumbnail(url=f"https://i.imgur.com/lDqNHua.png")
                 await ctx.send(embed=em)
 
             # Sausages do 25dmg and a 10% crit of 75-100
@@ -1336,9 +1331,9 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
             boss_hp -= dmg_to_take
             await asyncio.sleep(4)
             em = discord.Embed(
-                title="The power of Monox's sausages attacks Mensing!", colour=0xFF5C00
+                title="The power of Drakath's Followers attacks Eclipse!", colour=0xFF5C00
             )
-            em.set_thumbnail(url=f"{self.bot.BASE_URL}/image/monox.png")
+            em.set_thumbnail(url=f"https://i.imgur.com/kf3zcLs.png")
             em.add_field(name="Damage", value=dmg_to_take)
             if boss_hp > 0:
                 em.add_field(name="HP left", value=boss_hp)
@@ -1351,18 +1346,22 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
             # Timed out
             em = discord.Embed(
                 title="Defeat",
-                description="The followers of Monox were not able to raid the factory, Mensing has alarmed security. Mathis Mensing will be waiting with the cheese, though.",
+                description="As Drakath's malevolent laughter echoes through the shattered realm, his followers stand "
+                            "defeated before the overwhelming might of their vanquished foe, a stark reminder of "
+                            "chaos's unyielding and capricious nature.",
                 color=0xFFB900,
             )
-            em.set_image(url=f"{self.bot.BASE_URL}/image/matmen.png")
+            em.set_image(url=f"https://i.imgur.com/s5tvHMd.png")
             await ctx.send(embed=em)
         elif len(raid) == 0:
             em = discord.Embed(
                 title="Defeat",
-                description="The followers of Monox were defeat. Creamy cheese... Maybe next time?",
+                description="Amidst the smoldering ruins and the mocking whispers of the chaotic winds, Drakath's "
+                            "followers find themselves humbled by the boss's insurmountable power, their hopes dashed "
+                            "like shattered illusions in the wake of their failure.",
                 color=0xFFB900,
             )
-            em.set_image(url=f"{self.bot.BASE_URL}/image/matmen.png")
+            em.set_image(url=f"https://i.imgur.com/UpWW3fF.png")
             await ctx.send(embed=em)
         else:
             winner = random.choice(list(raid.keys()))
@@ -1373,10 +1372,13 @@ Mensing has {boss_hp} HP and will be vulnerable in 15 Minutes
                 )
             em = discord.Embed(
                 title="Win!",
-                description=f"The followers of Monox defeated Mensing and the creamy cheese is ours!\n{winner.mention} has been the biggest coomer and gets a legendary crate from Monox!",
+                description=f"The forces aligned with Drakath have triumphed over Eclipse, wresting victory from the "
+                            f"clutches of chaos itself!\n{winner.mention} emerges as a true champion of anarchy, "
+                            f"earning a legendary crate from Drakath as a token of recognition for their unrivaled "
+                            f"prowess!",
                 color=0xFFB900,
             )
-            em.set_image(url=f"{self.bot.BASE_URL}/image/monox.png")
+            em.set_image(url=f"https://i.imgur.com/U1Of4tz.png")
             await ctx.send(embed=em)
         await self.clear_raid_timer()
 

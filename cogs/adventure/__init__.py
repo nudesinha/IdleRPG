@@ -43,36 +43,57 @@ from utils.i18n import _, locale_doc
 from utils.maze import Cell, Maze
 
 ADVENTURE_NAMES = {
-    1: "Spider Cave",
-    2: "Troll Bridge",
-    3: "A Night Alone Outside",
-    4: "Ogre Raid",
-    5: "Proof Of Confidence",
-    6: "Dragon Canyon",
-    7: "Orc Tower",
-    8: "Seamonster's Temple",
-    9: "Dark Wizard's Castle",
-    10: "Slay The Famous Dragon Arzagor",
-    11: "Search For Excalibur",
-    12: "Find Atlantis",
-    13: "Tame A Phoenix",
-    14: "Slay The Death Reaper",
-    15: "Meet Adrian In Real Life",
-    16: "The League Of Vecca",
-    17: "The Gem Expedition",
-    18: "Gambling Problems?",
-    19: "The Necromancer Of Kord",
-    20: "Last One Standing",
-    21: "Gambling Problems? Again?",
-    22: "Insomnia",
-    23: "Illuminated",
-    24: "Betrayal",
-    25: "IdleRPG",
-    26: "Learn Programming",
-    27: "Scylla's Temple",
-    28: "Trial Of Osiris",
-    29: "Meet The War God In Hell",
-    30: "Divine Intervention",
+    1: "Mystic Grove",
+    2: "Rising Mist Bridge",
+    3: "Moonlit Solitude",
+    4: "Orcish Ambush",
+    5: "Trials of Conviction",
+    6: "Canyon of Flames",
+    7: "Sentinel Spire",
+    8: "Abyssal Sanctum",
+    9: "Shadowmancer's Citadel",
+    10: "Dragon's Bane: Arzagor's End",
+    11: "Quest for Avalon's Blade",
+    12: "Seekers of Lemuria",
+    13: "Phoenix's Embrace",
+    14: "Requiem of Shadows",
+    15: "Abysswalker's Challenge",
+    16: "Vecca's Legacy",
+    17: "Gemstone Odyssey",
+    18: "Shrek's Swamp",
+    19: "Kord's Resurgence",
+    20: "Arena of Endurance",
+    21: "Quest for the Astral Relic",
+    22: "Nocturnal Enigma",
+    23: "Luminous Quest",
+    24: "Web of Betrayal",
+    25: "Realm of Indolence",
+    26: "Forgotten Valley",
+    27: "Temple of the Sirens",
+    28: "Osiris' Judgment",
+    29: "War God's Parley",
+    30: "Divine Convergence",
+    31: "Shadow Convergence",
+    32: "Abyssal Titans",
+    33: "Cursed Bloodmoon",
+    34: "Pandemonium Rifts",
+    35: "Dread Plague",
+    36: "Apocalypse Eclipse",
+    37: "Eldritch Horrors",
+    38: "Crimson Pact",
+    39: "Serpent's Dominion",
+    40: "Chrono Reckoning",
+    41: "Cursed Ascendancy",
+    42: "Elder Eclipse",
+    43: "Netherstorm Siege",
+    44: "Ragnarok's Awakening",
+    45: "Abyssal Inferno",
+    46: "Eclipse of Oblivion",
+    47: "Voidwalker's Dominion",
+    48: "Doomsday Eclipse",
+    49: "Worldbreaker Cataclysm",
+    50: "Elder God's Reckoning",
+
 }
 
 DIRECTION = Literal["n", "e", "s", "w"]
@@ -92,12 +113,12 @@ class ActiveAdventureAction(Enum):
 
 class ActiveAdventureDirectionView(discord.ui.View):
     def __init__(
-        self,
-        user: discord.User,
-        future: asyncio.Future[ActiveAdventureAction],
-        possible_actions: set[ActiveAdventureAction],
-        *args,
-        **kwargs,
+            self,
+            user: discord.User,
+            future: asyncio.Future[ActiveAdventureAction],
+            possible_actions: set[ActiveAdventureAction],
+            *args,
+            **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
@@ -175,7 +196,7 @@ class ActiveAdventureDirectionView(discord.ui.View):
         return interaction.user.id == self.user.id
 
     async def handle(
-        self, interaction: Interaction, action: ActiveAdventureAction
+            self, interaction: Interaction, action: ActiveAdventureAction
     ) -> None:
         self.stop()
         self.future.set_result(action)
@@ -186,7 +207,7 @@ class ActiveAdventureDirectionView(discord.ui.View):
 
 class ActiveAdventure:
     def __init__(
-        self, ctx: Context, attack: int, defense: int, width: int = 15, height: int = 15
+            self, ctx: Context, attack: int, defense: int, width: int = 15, height: int = 15
     ) -> None:
         self.ctx = ctx
 
@@ -252,11 +273,11 @@ class ActiveAdventure:
                 status_2 = _("You healed yourself for {hp} HP").format(hp=self.heal_hp)
 
             if (
-                enemy_action == ActiveAdventureAction.AttackEnemy
-                and action == ActiveAdventureAction.Defend
+                    enemy_action == ActiveAdventureAction.AttackEnemy
+                    and action == ActiveAdventureAction.Defend
             ) or (
-                enemy_action == ActiveAdventureAction.Defend
-                and action == ActiveAdventureAction.AttackEnemy
+                    enemy_action == ActiveAdventureAction.Defend
+                    and action == ActiveAdventureAction.AttackEnemy
             ):
                 status_1 = _("Attack blocked.")
             else:
@@ -447,7 +468,7 @@ class Adventure(commands.Cog):
         luck_booster = await self.bot.get_booster(ctx.author, "luck")
 
         chances = []
-        for adv in range(1, 31):
+        for adv in range(1, 51):
             success = rpgtools.calcchance(
                 damage,
                 defense,
@@ -460,9 +481,9 @@ class Adventure(commands.Cog):
             chances.append(success)
 
         async with self.bot.trusted_session.post(
-            f"{self.bot.config.external.okapi_url}/api/genadventures",
-            json={"percentages": chances},
-            headers={"Authorization": self.bot.config.external.okapi_token},
+                f"{self.bot.config.external.okapi_url}/api/genadventures",
+                json={"percentages": chances},
+                headers={"Authorization": self.bot.config.external.okapi_token},
         ) as r:
             images = await r.json()
 
@@ -476,7 +497,7 @@ class Adventure(commands.Cog):
         aliases=["mission", "a"], brief=_("Sends your character on an adventure.")
     )
     @locale_doc
-    async def adventure(self, ctx, adventure_number: IntFromTo(1, 30)):
+    async def adventure(self, ctx, adventure_number: IntFromTo(1, 50)):
         _(
             """`<adventure_number>` - a whole number from 1 to 30
 
@@ -562,12 +583,12 @@ class Adventure(commands.Cog):
             (This command has a cooldown of 30 minutes)"""
         )
         if not await ctx.confirm(
-            _(
-                "You are going to be in a labyrinth. There are enemies,"
-                " treasures and hidden traps. Reach the exit in the bottom right corner"
-                " for a huge extra bonus!\nAre you ready?\n\nTip: Use a silent channel"
-                " for this, you may want to read all the messages I will send."
-            )
+                _(
+                    "You are going to be in a labyrinth. There are enemies,"
+                    " treasures and hidden traps. Reach the exit in the bottom right corner"
+                    " for a huge extra bonus!\nAre you ready?\n\nTip: Use a silent channel"
+                    " for this, you may want to read all the messages I will send."
+                )
         ):
             return
 
@@ -596,7 +617,7 @@ class Adventure(commands.Cog):
         )
         num, time, done = ctx.adventure_data
 
-        if not done:
+        if done:
             # TODO: Embeds ftw
             return await ctx.send(
                 embed=discord.Embed(
@@ -623,6 +644,10 @@ class Adventure(commands.Cog):
             bonus = buildings["adventure_building"]
         else:
             bonus = 0
+
+        if current_level > 30:
+            bonus = 5
+
         success = rpgtools.calcchance(
             damage,
             armor,
@@ -761,7 +786,7 @@ class Adventure(commands.Cog):
             """Cancels your ongoing adventure and allows you to start a new one right away. You will not receive any rewards if you cancel your adventure."""
         )
         if not await ctx.confirm(
-            _("Are you sure you want to cancel your current adventure?")
+                _("Are you sure you want to cancel your current adventure?")
         ):
             return await ctx.send(
                 _("Did not cancel your adventure. The journey continues...")

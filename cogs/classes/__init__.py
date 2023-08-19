@@ -274,7 +274,10 @@ class Classes(commands.Cog):
         level = rpgtools.xptolevel(ctx.character_data["xp"])
         if level < 5:
             return await ctx.send(_("Your level isn't high enough to evolve."))
-        newindex = int(level / 5)
+        if level > 30:
+            newindex = 6  # Set newindex to 6 when level is greater than 30
+        else:
+            newindex = int(level / 5)
         updated = 0
         new_classes = []
         for class_ in ctx.character_data["class"]:

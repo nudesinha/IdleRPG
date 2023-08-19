@@ -20,7 +20,7 @@ from discord.ext import commands
 from utils.i18n import _, locale_doc
 
 
-class Vote(commands.Cog):
+class Vote2(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 

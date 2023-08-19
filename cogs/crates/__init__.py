@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from collections import Counter, namedtuple
 
 import discord
+import random
 
 from discord.ext import commands
 
@@ -88,7 +89,7 @@ class Crates(commands.Cog):
     @commands.command(name="open", brief=_("Open a crate"))
     @locale_doc
     async def _open(
-        self, ctx, rarity: CrateRarity = "common", amount: IntFromTo(1, 100) = 1
+            self, ctx, rarity: CrateRarity = "common", amount: IntFromTo(1, 100) = 1
     ):
         _(
             """`[rarity]` - the crate's rarity to open, can be common, uncommon, rare, magic or legendary; defaults to common
@@ -314,15 +315,84 @@ class Crates(commands.Cog):
                             f" stats:\n```\n{most_common}\n```\nAverage: {average_stat}"
                         )
 
+    import random
+
+    @has_char()
+    @user_cooldown(43200)
+    @commands.command(brief=_("Vote and get crates"))
+    @locale_doc
+    async def vote(self, ctx):
+        _(
+            """Vote and get crates.
+
+            Vote and get 2 crates, with each crate having a chance of being common (89%), uncommon (6%), rare (4%), magic (0.9%) or legendary (0.1%).
+
+            This command has a cooldown of 12 hours."""
+        )
+        rarities = ["common"] * 890 + ["uncommon"] * 60 + ["rare"] * 40 + ["magic"] * 9 + ["legendary"] + ["mystery"] * 50
+        rarity1 = random.choice(rarities)
+        rarity2 = random.choice(rarities)
+
+        async with self.bot.pool.acquire() as conn:
+            await conn.execute(
+                f'UPDATE profile SET "crates_{rarity1}"="crates_{rarity1}"+1 WHERE'
+                ' "user"=$1;',
+                ctx.author.id,
+            )
+            await conn.execute(
+                f'UPDATE profile SET "crates_{rarity2}"="crates_{rarity2}"+1 WHERE'
+                ' "user"=$1;',
+                ctx.author.id,
+            )
+            await self.bot.log_transaction(
+                ctx,
+                from_=1,
+                to=ctx.author.id,
+                subject="crates",
+                data={"Rarity": rarity1, "Amount": 1},
+                conn=conn,
+            )
+            await self.bot.log_transaction(
+                ctx,
+                from_=1,
+                to=ctx.author.id,
+                subject="crates",
+                data={"Rarity": rarity2, "Amount": 1},
+                conn=conn,
+            )
+
+        emotes = {
+            "common": "<:F_common:1139514874016309260>",
+            "uncommon": "<:F_uncommon:1139514875828252702>",
+            "rare": "<:F_rare:1139514880517484666>",
+            "magic": "<:F_Magic:1139514865174720532>",
+            "legendary": "<:F_Legendary:1139514868400132116>",
+            "mystery": "<:F_mystspark:1139521536320094358>"
+        }
+
+        if rarity1 == rarity2:
+            await ctx.send(
+                _("Yeah.. there is no voting, but hey and got 2 {emote} {rarity} crates for your efforts!").format(
+                    emote=emotes[rarity1], rarity=rarity1
+                )
+            )
+        else:
+            await ctx.send(
+                _("Yeah.. there is no voting, but hey and got a {emote1} {rarity1} crate and a {emote2} {rarity2} "
+                  "crate for your efforts!").format(
+                    emote1=emotes[rarity1], rarity1=rarity1, emote2=emotes[rarity2], rarity2=rarity2
+                )
+            )
+
     @has_char()
     @commands.command(aliases=["tc"], brief=_("Give crates to someone"))
     @locale_doc
     async def tradecrate(
-        self,
-        ctx,
-        other: MemberWithCharacter,
-        amount: IntGreaterThan(0) = 1,
-        rarity: CrateRarity = "common",
+            self,
+            ctx,
+            other: MemberWithCharacter,
+            amount: IntGreaterThan(0) = 1,
+            rarity: CrateRarity = "common",
     ):
         _(
             """`<other>` - A user with a character
@@ -376,12 +446,12 @@ class Crates(commands.Cog):
     )
     @locale_doc
     async def offercrate(
-        self,
-        ctx,
-        quantity: IntGreaterThan(0),
-        rarity: CrateRarity,
-        price: IntFromTo(0, 100_000_000),
-        buyer: MemberWithCharacter,
+            self,
+            ctx,
+            quantity: IntGreaterThan(0),
+            rarity: CrateRarity,
+            price: IntFromTo(0, 100_000_000),
+            buyer: MemberWithCharacter,
     ):
         _(
             """`<quantity>` - The quantity of crates to offer
@@ -411,36 +481,36 @@ class Crates(commands.Cog):
             return await self.bot.reset_cooldown(ctx)
 
         if not await ctx.confirm(
-            _(
-                "{author}, are you sure you want to offer **{quantity} {emoji}"
-                " {rarity}** crate(s) for **${price:,.0f}**?"
-            ).format(
-                author=ctx.author.mention,
-                quantity=quantity,
-                emoji=getattr(self.emotes, rarity),
-                rarity=rarity,
-                price=price,
-            )
+                _(
+                    "{author}, are you sure you want to offer **{quantity} {emoji}"
+                    " {rarity}** crate(s) for **${price:,.0f}**?"
+                ).format(
+                    author=ctx.author.mention,
+                    quantity=quantity,
+                    emoji=getattr(self.emotes, rarity),
+                    rarity=rarity,
+                    price=price,
+                )
         ):
             await ctx.send(_("Offer cancelled."))
             return await self.bot.reset_cooldown(ctx)
 
         try:
             if not await ctx.confirm(
-                _(
-                    "{buyer}, {author} offered you **{quantity} {emoji} {rarity}**"
-                    " crate(s) for **${price:,.0f}!** React to buy it! You have **2"
-                    " Minutes** to accept the trade or the offer will be cancelled."
-                ).format(
-                    buyer=buyer.mention,
-                    author=ctx.author.mention,
-                    quantity=quantity,
-                    emoji=getattr(self.emotes, rarity),
-                    rarity=rarity,
-                    price=price,
-                ),
-                user=buyer,
-                timeout=120,
+                    _(
+                        "{buyer}, {author} offered you **{quantity} {emoji} {rarity}**"
+                        " crate(s) for **${price:,.0f}!** React to buy it! You have **2"
+                        " Minutes** to accept the trade or the offer will be cancelled."
+                    ).format(
+                        buyer=buyer.mention,
+                        author=ctx.author.mention,
+                        quantity=quantity,
+                        emoji=getattr(self.emotes, rarity),
+                        rarity=rarity,
+                        price=price,
+                    ),
+                    user=buyer,
+                    timeout=120,
             ):
                 await ctx.send(
                     _("They didn't want to buy the crate(s). Offer cancelled.")
