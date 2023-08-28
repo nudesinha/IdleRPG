@@ -408,7 +408,7 @@ class Marriage(commands.Cog):
     @commands.guild_only()
     @user_cooldown(3600)
     @commands.command(
-        aliases=["fuck", "sex", "breed"], brief=_("Have a child with your partner")
+        aliases=["fuck", "sex", "breed", "cheese"], brief=_("Have a child with your partner")
     )
     @locale_doc
     async def child(self, ctx):
