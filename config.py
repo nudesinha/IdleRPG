@@ -88,11 +88,11 @@ class DatabaseSection:
     }
 
     def __init__(self, data: dict[str, Any]) -> None:
-        self.postgres_name = data.get("postgres_name", "idlerpg")
-        self.postgres_user = data.get("postgres_user", "lunar")
+        self.postgres_name = data.get("postgres_name", "anything")
+        self.postgres_user = data.get("postgres_user", "root")
         self.postgres_port = data.get("postgres_port", 5432)
-        self.postgres_host = data.get("postgres_host", "51.222.106.141")
-        self.postgres_password = data.get("postgres_password", "Nnaannaa112")
+        self.postgres_host = data.get("postgres_host", "local")
+        self.postgres_password = data.get("postgres_password", "idfk")
         self.redis_host = data.get("redis_host", "127.0.0.1")
         self.redis_port = data.get("redis_port", 6379)
         self.redis_database = data.get("redis_database", 0)
