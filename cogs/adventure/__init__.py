@@ -533,6 +533,13 @@ class Adventure(commands.Cog):
             time = time / 2
         await self.bot.start_adventure(ctx.author, adventure_number, time)
 
+        await ctx.send(
+            _(
+                "Successfully sent your character out on an adventure. Use"
+                " `{prefix}status` to see the current status of the mission."
+            ).format(prefix=ctx.clean_prefix)
+        )
+
         async with self.bot.pool.acquire() as conn:
             remind_adv = await conn.fetchval(
                 'SELECT "adventure_reminder" FROM user_settings WHERE "user"=$1;',
@@ -549,12 +556,7 @@ class Adventure(commands.Cog):
                     conn=conn,
                 )
 
-        await ctx.send(
-            _(
-                "Successfully sent your character out on an adventure. Use"
-                " `{prefix}status` to see the current status of the mission."
-            ).format(prefix=ctx.clean_prefix)
-        )
+
 
     @has_char()
     @has_no_adventure()
@@ -617,7 +619,7 @@ class Adventure(commands.Cog):
         )
         num, time, done = ctx.adventure_data
 
-        if done:
+        if not done:
             # TODO: Embeds ftw
             return await ctx.send(
                 embed=discord.Embed(

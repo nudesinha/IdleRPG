@@ -48,7 +48,7 @@ class BlackJackAction(Enum):
 
 class InsuranceView(discord.ui.View):
     def __init__(
-        self, user: discord.User, future: asyncio.Future[bool], *args, **kwargs
+            self, user: discord.User, future: asyncio.Future[bool], *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.user = user
@@ -75,11 +75,11 @@ class InsuranceView(discord.ui.View):
 
 class BlackJackView(discord.ui.View):
     def __init__(
-        self,
-        user: discord.User,
-        future: asyncio.Future[BlackJackAction],
-        *args,
-        **kwargs,
+            self,
+            user: discord.User,
+            future: asyncio.Future[BlackJackAction],
+            *args,
+            **kwargs,
     ) -> None:
         self.user = user
         self.future = future
@@ -159,58 +159,59 @@ class BlackJackView(discord.ui.View):
 class BlackJack:
     def __init__(self, ctx: Context, money: int) -> None:
         self.cards = {
-            "adiamonds": "<:adiamonds:508321810832556033>",
-            "2diamonds": "<:2diamonds:508321809536385024>",
-            "3diamonds": "<:3diamonds:508321809729585172>",
-            "4diamonds": "<:4diamonds:508321809678991362>",
-            "5diamonds": "<:5diamonds:508321810098683910>",
-            "6diamonds": "<:6diamonds:508321810325176333>",
-            "7diamonds": "<:7diamonds:508321810300010497>",
-            "8diamonds": "<:8diamonds:508321810635292693>",
-            "9diamonds": "<:9diamonds:508321810836881438>",
-            "10diamonds": "<:10diamonds:508321811016974376>",
-            "jdiamonds": "<:jdiamonds:508321810878824460>",
-            "qdiamonds": "<:qdiamonds:508321811016974376>",
-            "kdiamonds": "<:kdiamonds:508321811612696576>",
-            "aclubs": "<:aclubs:508321811151192064>",
-            "2clubs": "<:2clubs:508321809221812245>",
-            "3clubs": "<:3clubs:508321809410818096>",
-            "4clubs": "<:4clubs:508321809926717450>",
-            "5clubs": "<:5clubs:508321810127912970>",
-            "6clubs": "<:6clubs:508321810622971904>",
-            "7clubs": "<:7clubs:508321810182438955>",
-            "8clubs": "<:8clubs:508321810421514279>",
-            "9clubs": "<:9clubs:508321810677497894>",
-            "10clubs": "<:10clubs:508321810794676234>",
-            "jclubs": "<:jclubs:508321811176488960>",
-            "qclubs": "<:qclubs:508321811407306762>",
-            "kclubs": "<:kclubs:508321811365101578>",
-            "ahearts": "<:ahearts:508321810828361742>",
-            "2hearts": "<:2hearts:508321809632854016>",
-            "3hearts": "<:3hearts:508321809662345231>",
-            "4hearts": "<:4hearts:508321810023186442>",
-            "5hearts": "<:5hearts:508321810396348456>",
-            "6hearts": "<:6hearts:508321810249678852>",
-            "7hearts": "<:7hearts:508321810417451008>",
-            "8hearts": "<:8hearts:508321810635423748>",
-            "9hearts": "<:9hearts:508321810727829533>",
-            "10hearts": "<:10hearts:508321810970836992>",
-            "jhearts": "<:jhearts:508321811373621249>",
-            "qhearts": "<:qhearts:508321867954782208>",
-            "khearts": "<:khearts:508321811424083969>",
-            "aspades": "<:aspades:508321810811584527>",
-            "2spades": "<:2spades:508321809591173120>",
-            "3spades": "<:3spades:508321809981112340>",
-            "4spades": "<:4spades:508321810190696458>",
-            "5spades": "<:5spades:508321810400673824>",
-            "6spades": "<:6spades:508321810358599680>",
-            "7spades": "<:7spades:508321810874630155>",
-            "8spades": "<:8spades:508321810828492820>",
-            "9spades": "<:9spades:508321810815647744>",
-            "10spades": "<:10spades:508321810874499083>",
-            "jspades": "<:jspades:508321811298254875>",
-            "qspades": "<:qspades:508321868193726464>",
-            "kspades": "<:kspades:508321811457507329>",
+            "adiamonds": "<:ace_of_diamonds:1145400362552012800>",
+            "2diamonds": "<:2_of_diamonds:1145400865209987223>",
+            "3diamonds": "<:3_of_diamonds:1145400877679648858>",
+            "4diamonds": "<:4_of_diamonds:1145400270830960660>",
+            "5diamonds": "<:5_of_diamonds:1145400282239479848>",
+            "6diamonds": "<:6_of_diamonds:1145400297791950909>",
+            "7diamonds": "<:7_of_diamonds:1145400309921886358>",
+            "8diamonds": "<:8_of_diamonds:1145400320457973971>",
+            "9diamonds": "<:9_of_diamonds:1145400335716864082>",
+            "10diamonds": "<:10_of_diamonds:1145400349071523981>",
+            "jdiamonds": "<:jack_of_diamonds2:1145400380558151722>",
+            "qdiamonds": "<:queen_of_diamonds2:1145400426175398009>",
+            "kdiamonds": "<:king_of_diamonds2:1145400404075626536>",
+            "aclubs": "<:ace_of_clubs:1145400358768758785>",
+            "2clubs": "<:2_of_clubs:1145400863129604127>",
+            "3clubs": "<:3_of_clubs:1145400874311614515>",
+            "4clubs": "<:4_of_clubs:1145400280343662623>",
+            "5clubs": "<:5_of_clubs:1145400280343662623>",
+            "6clubs": "<:6_of_clubs:1145400295971631184>",
+            "7clubs": "<:7_of_clubs:1145400306738409563>",
+            "8clubs": "<:8_of_clubs:1145400318503436318>",
+            "9clubs": "<:9_of_clubs:1145400334139793418>",
+            "10clubs": "<:10_of_clubs:1145400346668171276>",
+            "jclubs": "<:jack_of_clubs2:1145400373381709966>",
+            "qclubs": "<:queen_of_clubs2:1145400422094352530>",
+            "kclubs": "<:king_of_clubs2:1145400399654834208>",
+            "ahearts": "<:ace_of_hearts:1145400364535926824>",
+            "2hearts": "<:2_of_hearts:1145400868477354005>",
+            "3hearts": "<:3_of_hearts:1145400882490507304>",
+            "4hearts": "<:4_of_hearts:1145400273448214619>",
+            "5hearts": "<:5_of_hearts:1145400286001766521>",
+            "6hearts": "<:6_of_hearts:1145400301222887444>",
+            "7hearts": "<:7_of_hearts:1145400312534929419>",
+            "8hearts": "<:8_of_hearts:1145400324744548562>",
+            "9hearts": "<:9_of_hearts:1145400339537862749>",
+            "10hearts": "<:10_of_hearts:1145400352871559268>",
+            "jhearts": "<:jack_of_hearts2:1145400387071909888>",
+            "qhearts": "<:queen_of_hearts2:1145400432018063381>",
+            "khearts": "<:king_of_hearts2:1145400409742118934>",
+            "aspades": "<:ace_of_spades:1145400368105279658>",
+            "2spades": "<:2_of_spades:1145400872340299796>",
+            "3spades": "<:3_of_spades:1145400874311614515>",
+            "4spades": "<:4_of_spades:1145400276686225408>",
+            "5spades": "<:5_of_spades:1145400290531622943>",
+            "6spades": "<:6_of_spades:1145400304888721548>",
+            "7spades": "<:7_of_spades:1145400314955055165>",
+            "8spades": "<:8_of_spades:1145400329354105013>",
+            "9spades": "<:9_of_spades:1145400342763282546>",
+            "10spades": "<:10_of_spades:1145400356424130712>",
+            "jspades": "<:jack_of_spades2:1145400391798894612>",
+            "qspades": "<:queen_of_spades2:1145400436891865089>",
+            "kspades": "<:king_of_spades2:1145400416608194680>",
+
         }
         self.deck: list[tuple[int, str, str]] = []
         self.prepare_deck()
@@ -281,7 +282,7 @@ class BlackJack:
         return hand
 
     def split(
-        self, hand
+            self, hand
     ) -> tuple[list[tuple[int, str, str]], list[tuple[int, str, str]]]:
         hand1 = hand[:-1]
         hand2 = [hand[-1]]
@@ -295,7 +296,7 @@ class BlackJack:
 
             async with self.ctx.bot.pool.acquire() as conn:
                 if not await has_money(
-                    self.ctx.bot, self.ctx.author.id, insurance_cost, conn=conn
+                        self.ctx.bot, self.ctx.author.id, insurance_cost, conn=conn
                 ):
                     return False
 
@@ -378,7 +379,7 @@ class BlackJack:
         return " ".join([card[2] for card in hand])
 
     async def send_insurance(
-        self,
+            self,
     ) -> bool:
         player = self.total(self.player)
         dealer = self.total(self.dealer)
@@ -404,14 +405,14 @@ class BlackJack:
         return await future
 
     async def send(
-        self,
-        additional: str = "",
-        hit: bool = False,
-        stand: bool = False,
-        double_down: bool = False,
-        change_deck: bool = False,
-        split: bool = False,
-        wait_for_action: bool = True,
+            self,
+            additional: str = "",
+            hit: bool = False,
+            stand: bool = False,
+            double_down: bool = False,
+            change_deck: bool = False,
+            split: bool = False,
+            wait_for_action: bool = True,
     ) -> BlackJackAction | None:
         player = self.total(self.player)
         dealer = self.total(self.dealer)
@@ -506,9 +507,9 @@ class BlackJack:
         additional = ""
 
         while (
-            self.total(self.dealer) < 22
-            and self.total(self.player) < 22
-            and not self.over
+                self.total(self.dealer) < 22
+                and self.total(self.player) < 22
+                and not self.over
         ):
             possible_actions["change_deck"] = self.twodecks and not self.doubled
             possible_actions["split"] = self.splittable(self.player)
@@ -554,7 +555,7 @@ class BlackJack:
 
                     async with self.ctx.bot.pool.acquire() as conn:
                         if not await has_money(
-                            self.ctx.bot, self.ctx.author.id, self.payout, conn=conn
+                                self.ctx.bot, self.ctx.author.id, self.payout, conn=conn
                         ):
                             return await self.ctx.send(
                                 _("Invalid. You're too poor and lose the match.")
@@ -640,7 +641,7 @@ class Gambling(commands.Cog):
     @commands.command(aliases=["card"], brief=_("Draw a card."))
     @locale_doc
     async def draw(
-        self, ctx, enemy: MemberWithCharacter = None, money: IntGreaterThan(-1) = 0
+            self, ctx, enemy: MemberWithCharacter = None, money: IntGreaterThan(-1) = 0
     ):
         _(
             """`[enemy]` - A user who has a profile; defaults to None
@@ -681,16 +682,16 @@ class Gambling(commands.Cog):
 
             try:
                 if not await ctx.confirm(
-                    _(
-                        "{author} challenges {enemy} to a game of Draw for"
-                        " **${money}**. Do you accept?"
-                    ).format(
-                        author=ctx.author.mention,
-                        enemy=enemy.mention,
-                        money=money,
-                    ),
-                    user=enemy,
-                    timeout=15,
+                        _(
+                            "{author} challenges {enemy} to a game of Draw for"
+                            " **${money}**. Do you accept?"
+                        ).format(
+                            author=ctx.author.mention,
+                            enemy=enemy.mention,
+                            money=money,
+                        ),
+                        user=enemy,
+                        timeout=15,
                 ):
                     await money_back()
                     return await ctx.send(
@@ -831,10 +832,10 @@ class Gambling(commands.Cog):
 
                     def check(r, u):
                         return (
-                            str(r.emoji) in emojis
-                            and r.message.id == msg.id
-                            and u in [ctx.author, enemy]
-                            and not u.bot
+                                str(r.emoji) in emojis
+                                and r.message.id == msg.id
+                                and u in [ctx.author, enemy]
+                                and not u.bot
                         )
 
                     async def cleanup() -> None:
@@ -951,11 +952,11 @@ This command is in an alpha-stage, which means bugs are likely to happen. Play a
     @commands.command(aliases=["coin"], brief=_("Toss a coin"))
     @locale_doc
     async def flip(
-        self,
-        ctx,
-        side: CoinSide | None = "heads",
-        *,
-        amount: IntFromTo(0, 100_000) = 0,
+            self,
+            ctx,
+            side: CoinSide | None = "heads",
+            *,
+            amount: IntFromTo(0, 100_000) = 0,
     ):
         _(
             """`[side]` - The coin side to bet on, can be heads or tails; defaults to heads
@@ -1022,11 +1023,11 @@ This command is in an alpha-stage, which means bugs are likely to happen. Play a
     @commands.command(brief=_("Bet on a specific outcome of an n-sided dice."))
     @locale_doc
     async def bet(
-        self,
-        ctx,
-        maximum: IntGreaterThan(1) = 6,
-        tip: IntGreaterThan(0) = 6,
-        money: IntFromTo(0, 100_000) = 0,
+            self,
+            ctx,
+            maximum: IntGreaterThan(1) = 6,
+            tip: IntGreaterThan(0) = 6,
+            money: IntFromTo(0, 100_000) = 0,
     ):
         _(
             """`[maximum]` - The amount of sides the dice will have, must be greater than 1; defaults to 6
@@ -1080,7 +1081,7 @@ This command is in an alpha-stage, which means bugs are likely to happen. Play a
             if maximum >= 100:
                 await self.bot.public_log(
                     f"**{ctx.author}** won **${money * (maximum - 1)}** while betting"
-                    f" with `{maximum}`. ({round(100/maximum, 2)}% chance)"
+                    f" with `{maximum}`. ({round(100 / maximum, 2)}% chance)"
                 )
         else:
             if money > 0:
@@ -1172,10 +1173,10 @@ This command is in an alpha-stage, which means bugs are likely to happen. Play a
             if user and user != u:
                 return False
             return (
-                u != ctx.author
-                and not u.bot
-                and r.message.id == msg.id
-                and str(r.emoji) == "\U0001f4b0"
+                    u != ctx.author
+                    and not u.bot
+                    and r.message.id == msg.id
+                    and str(r.emoji) == "\U0001f4b0"
             )
 
         await msg.add_reaction("\U0001f4b0")

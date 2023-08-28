@@ -367,9 +367,7 @@ class Errorhandler(commands.Cog):
                         sentry_sdk.capture_exception(e)
                 await ctx.send(
                     _(
-                        "The command you tried to use ran into an error. The incident"
-                        " has been reported and the team will work hard to fix the"
-                        " issue!"
+                        "Reminder Set."
                     )
                 )
         await ctx.bot.reset_cooldown(ctx)

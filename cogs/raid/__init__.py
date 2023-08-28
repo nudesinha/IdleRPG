@@ -1030,9 +1030,9 @@ The hamburger will be vulnerable in 15 Minutes
 
     @is_god()
     @raid_free()
-    @commands.command(hidden=True, brief=_("Starts Aurelia' trial"))
+    @commands.command(hidden=True, brief=_("Starts Astraea' trial"))
     async def goodspawn(self, ctx):
-        """[Aurelia only] Starts a Trial."""
+        """[Astraea only] Starts a Trial."""
         await self.set_raid_timer()
 
         view = JoinView(
@@ -1043,35 +1043,49 @@ The hamburger will be vulnerable in 15 Minutes
 
         await ctx.send(
             """
-Aurelia has awoken, she challenges her followers.
-Stare the dawn.
-Face your Ouroboros.
-Are you worthy? Can your soul handle the force of your sins?
+In Athena's grace, embrace the light,
+Seek trials that soothe, heal the blight.
+With kindness as your guiding star,
+Illuminate souls from near and far.
 
-**Only followers of Aurelia may join.**""",
+**__Champions of compassion, take your stand.__**
+Trial Begins in 15 minutes
+
+**Only followers of Astraea may join.**""",
             file=discord.File("assets/other/lyx.webp"),
             view=view,
         )
         if not self.bot.config.bot.is_beta:
             await asyncio.sleep(300)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 10 minutes**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 10 minutes**")
             await asyncio.sleep(300)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 5 minutes**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 5 minutes**")
             await asyncio.sleep(180)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 2 minutes**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 2 minutes**")
             await asyncio.sleep(60)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 1 minute**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 1 minute**")
             await asyncio.sleep(30)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 30 seconds**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 30 seconds**")
             await asyncio.sleep(20)
-            await ctx.send("**Aurelia and her Ouroboros will be visible in 10 seconds**")
+            await ctx.send("**Astraea and her Ouroboros will be visible in 10 seconds**")
         else:
+            await asyncio.sleep(300)
+            await ctx.send("**Astraea's trial will commence in 10 minutes**")
+            await asyncio.sleep(300)
+            await ctx.send("**Astraea's trial will commence in 5 minutes**")
+            await asyncio.sleep(180)
+            await ctx.send("**Astraea's trial will commence in 2 minutes**")
             await asyncio.sleep(60)
+            await ctx.send("**Astraea's trial will commence in 1 minute**")
+            await asyncio.sleep(30)
+            await ctx.send("**Astraea's trial will commence in 30 seconds**")
+            await asyncio.sleep(20)
+            await ctx.send("**Astraea's trial will commence in 10 seconds**")
 
         view.stop()
 
         await ctx.send(
-            "**Aurelia and her Ouroboros are visible! Fetch participant data... Hang on!**"
+            "**Astraea's trial will commence! Fetch participant data... Hang on!**"
         )
 
         async with self.bot.pool.acquire() as conn:
@@ -1083,7 +1097,7 @@ Are you worthy? Can your soul handle the force of your sins?
                             'SELECT * FROM profile WHERE "user"=$1;', u.id
                         )
                     )
-                    or profile["god"] != "Aurelia"
+                    or profile["god"] != "Astraea"
                 ):
                     continue
                 raid.append(u)
@@ -1124,7 +1138,7 @@ Are you worthy? Can your soul handle the force of your sins?
                         },
                         {
                             "text": "Ease Emotional Burdens",
-                            "win": 70,
+                            "win": 50,
                             "win_text": "Through your empathetic words, you mend fractured souls. Astraea's favor "
                                         "shines on you.",
                             "lose_text": "Your words fall short, unable to mend the hearts before you. Astraea's "
@@ -1145,7 +1159,7 @@ Are you worthy? Can your soul handle the force of your sins?
                     [
                         {
                             "text": "Guiding Light of Compassion",
-                            "win": 70,
+                            "win": 30,
                             "win_text": "Amidst the tranquil night, your compassion brings light to dark corners. "
                                         "Astraea's approval graces you.",
                             "lose_text": "Your efforts to bring solace in the night are met with challenges. Astraea's "
@@ -1153,19 +1167,37 @@ Are you worthy? Can your soul handle the force of your sins?
                         },
                         {
                             "text": "Healing Moon's Embrace",
-                            "win": 75,
+                            "win": 45,
                             "win_text": "Under the moon's serenity, your healing touch is magnified. Astraea's "
                                         "presence envelops you.",
                             "lose_text": "Your attempts to heal are hindered by unseen forces. Astraea's touch remains "
                                          "elusive.",
                         },
+                        {
+                            "text": "Celestial Blessing of Serenity",
+                            "win": 20,
+                            "win_text": "As the stars align in your favor, Astraea's serene blessings envelop you. A "
+                                        "tranquil aura emanates from your being, soothing all around.",
+                            "lose_text": "Despite your efforts to channel the cosmos, Astraea's tranquility eludes "
+                                         "you, leaving only fleeting traces of its presence.",
+                        },
+                        {
+                            "text": "Stellar Harmonies of Renewal",
+                            "win": 20,
+                            "win_text": "In harmony with the celestial melodies, your actions resonate with Astraea's "
+                                        "essence. The stars themselves seem to sing your praises, infusing the air "
+                                        "with renewal.",
+                            "lose_text": "The cosmic harmonies remain elusive, and your attempts to align with "
+                                         "Astraea's melody falter, leaving a sense of missed opportunity in the "
+                                         "night's chorus.",
+                        }
                     ]
                 )
             does_win = event["win"] >= random.randint(1, 100)
             if does_win:
                 text = event["win_text"]
             else:
-                text = event["loose_text"]
+                text = event["lose_text"]
                 raid.remove(target)
             em = discord.Embed(
                 title=event["text"],
@@ -1180,7 +1212,9 @@ Are you worthy? Can your soul handle the force of your sins?
 
         winner = raid[0]
         await ctx.send(
-            f"Out of the strongest survivors to escape Ouroboros fangs, {winner.mention} has joined Aurelia in the cosmos. They find a legendary crate amongst the stars."
+            f"In the divine radiance of Astraea, {winner.mention} ascends to the cosmic realm. Guided by the "
+            f"goddess's embrace, they uncover a celestial treasure—an enigmatic, legendary crate adorned with "
+            f"stardust among the constellations."
         )
         async with self.bot.pool.acquire() as conn:
             await conn.execute(
@@ -1235,7 +1269,18 @@ Eclipse the Void Conqueror has {boss_hp} HP and will be vulnerable in 15 Minutes
             await ctx.send("**The raid on the void will start in 10 seconds**")
             await asyncio.sleep(10)
         else:
+            await asyncio.sleep(300)
+            await ctx.send("**The raid on the void will start in 10 minutes**")
+            await asyncio.sleep(300)
+            await ctx.send("**The raid on the void will start in 5 minutes**")
+            await asyncio.sleep(180)
+            await ctx.send("**The raid on the void will start in 2 minutes**")
             await asyncio.sleep(60)
+            await ctx.send("**The raid on the void will start in 1 minute**")
+            await asyncio.sleep(30)
+            await ctx.send("**The raid on the void will start in 30 seconds**")
+            await asyncio.sleep(20)
+            await ctx.send("**The raid on the void will start in 10 seconds**")
 
         view.stop()
 
@@ -1255,7 +1300,7 @@ Eclipse the Void Conqueror has {boss_hp} HP and will be vulnerable in 15 Minutes
                     or profile["god"] != "Drakath"
                 ):
                     continue
-                raid[u] = 25000
+                raid[u] = 250
 
         await ctx.send("**Done getting data!**")
 

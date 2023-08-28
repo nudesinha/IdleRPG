@@ -191,11 +191,6 @@ class Trading(commands.Cog):
                 item["price"] + tax,
                 ctx.author.id,
             )
-            await conn.execute(
-                "INSERT INTO inventory (item, equipped) VALUES ($1, $2);",
-                item["id"],
-                False,
-            )
             if tax:
                 await self.bot.log_transaction(
                     ctx,

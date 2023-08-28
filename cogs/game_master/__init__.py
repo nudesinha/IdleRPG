@@ -22,6 +22,7 @@ import discord
 from asyncpg.exceptions import UniqueViolationError
 from discord.ext import commands
 from discord.http import handle_message_parameters
+import json
 
 from classes.converters import CrateRarity, IntFromTo, IntGreaterThan, UserWithCharacter
 from classes.items import ItemType
@@ -56,6 +57,7 @@ class GameMaster(commands.Cog):
         self.bot = bot
         self.top_auction = None
         self.auction_entry = None
+        self.patron_ids = self.load_patron_ids()
 
     @is_gm()
     @commands.command(brief=_("Publish an announcement"))
@@ -132,11 +134,11 @@ class GameMaster(commands.Cog):
             await ctx.send(_("Banned: {other}").format(other=other))
 
             with handle_message_parameters(
-                content="**{gm}** banned **{other}**.\n\nReason: *{reason}*".format(
-                    gm=ctx.author,
-                    other=other,
-                    reason=reason or f"<{ctx.message.jump_url}>",
-                )
+                    content="**{gm}** banned **{other}**.\n\nReason: *{reason}*".format(
+                        gm=ctx.author,
+                        other=other,
+                        reason=reason or f"<{ctx.message.jump_url}>",
+                    )
             ) as params:
                 await self.bot.http.send_message(
                     self.bot.config.game.gm_log_channel,
@@ -166,11 +168,11 @@ class GameMaster(commands.Cog):
             await ctx.send(_("Unbanned: {other}").format(other=other))
 
             with handle_message_parameters(
-                content="**{gm}** unbanned **{other}**.\n\nReason: *{reason}*".format(
-                    gm=ctx.author,
-                    other=other,
-                    reason=reason or f"<{ctx.message.jump_url}>",
-                )
+                    content="**{gm}** unbanned **{other}**.\n\nReason: *{reason}*".format(
+                        gm=ctx.author,
+                        other=other,
+                        reason=reason or f"<{ctx.message.jump_url}>",
+                    )
             ) as params:
                 await self.bot.http.send_message(
                     self.bot.config.game.gm_log_channel,
@@ -183,12 +185,12 @@ class GameMaster(commands.Cog):
     @commands.command(hidden=True, brief=_("Create money"))
     @locale_doc
     async def gmgive(
-        self,
-        ctx,
-        money: int,
-        other: UserWithCharacter,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            money: int,
+            other: UserWithCharacter,
+            *,
+            reason: str = None,
     ):
         _(
             """`<money>` - the amount of money to generate for the user
@@ -209,12 +211,12 @@ class GameMaster(commands.Cog):
         )
 
         with handle_message_parameters(
-            content="**{gm}** gave **${money}** to **{other}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                money=money,
-                other=other,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** gave **${money}** to **{other}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    money=money,
+                    other=other,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -225,12 +227,12 @@ class GameMaster(commands.Cog):
     @commands.command(hidden=True, brief=_("Remove money"))
     @locale_doc
     async def gmremove(
-        self,
-        ctx,
-        money: int,
-        other: UserWithCharacter,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            money: int,
+            other: UserWithCharacter,
+            *,
+            reason: str = None,
     ):
         _(
             """`<money>` - the amount of money to remove from the user
@@ -251,12 +253,12 @@ class GameMaster(commands.Cog):
         )
 
         with handle_message_parameters(
-            content="**{gm}** removed **${money}** from **{other}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                money=money,
-                other=other,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** removed **${money}** from **{other}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    money=money,
+                    other=other,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -305,9 +307,9 @@ class GameMaster(commands.Cog):
         await ctx.send(_("Successfully deleted the character."))
 
         with handle_message_parameters(
-            content="**{gm}** deleted **{other}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author, other=other, reason=reason or f"<{ctx.message.jump_url}>"
-            )
+                content="**{gm}** deleted **{other}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author, other=other, reason=reason or f"<{ctx.message.jump_url}>"
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -335,10 +337,10 @@ class GameMaster(commands.Cog):
 
         def mycheck(amsg):
             return (
-                amsg.author == ctx.author
-                and amsg.channel == ctx.channel
-                and len(amsg.content) < 21
-                and len(amsg.content) > 2
+                    amsg.author == ctx.author
+                    and amsg.channel == ctx.channel
+                    and len(amsg.content) < 21
+                    and len(amsg.content) > 2
             )
 
         try:
@@ -352,12 +354,12 @@ class GameMaster(commands.Cog):
         await ctx.send(_("Renamed."))
 
         with handle_message_parameters(
-            content="**{gm}** renamed **{target}** to **{name}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                target=target,
-                name=name.content,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** renamed **{target}** to **{name}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    target=target,
+                    name=name.content,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -368,15 +370,15 @@ class GameMaster(commands.Cog):
     @commands.command(hidden=True, brief=_("Create an item"))
     @locale_doc
     async def gmitem(
-        self,
-        ctx,
-        stat: int,
-        owner: UserWithCharacter,
-        item_type: str.title,
-        value: IntFromTo(0, 100000000),
-        name: str,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            stat: int,
+            owner: UserWithCharacter,
+            item_type: str.title,
+            value: IntFromTo(0, 100000000),
+            name: str,
+            *,
+            reason: str = None,
     ):
         _(
             """`<stat>` - the generated item's stat, must be between 0 and 100
@@ -429,13 +431,13 @@ class GameMaster(commands.Cog):
     @commands.command(hidden=True, brief=_("Create crates"))
     @locale_doc
     async def gmcrate(
-        self,
-        ctx,
-        rarity: CrateRarity,
-        amount: int,
-        target: UserWithCharacter,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            rarity: CrateRarity,
+            amount: int,
+            target: UserWithCharacter,
+            *,
+            reason: str = None,
     ):
         _(
             """`<rarity>` - the crates' rarity, can be common, uncommon, rare, magic or legendary
@@ -460,13 +462,13 @@ class GameMaster(commands.Cog):
         )
 
         with handle_message_parameters(
-            content="**{gm}** gave **{amount}** {rarity} crates to **{target}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                amount=amount,
-                rarity=rarity,
-                target=target,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** gave **{amount}** {rarity} crates to **{target}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    amount=amount,
+                    rarity=rarity,
+                    target=target,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -477,12 +479,12 @@ class GameMaster(commands.Cog):
     @commands.command(hidden=True, brief=_("Generate XP"))
     @locale_doc
     async def gmxp(
-        self,
-        ctx,
-        target: UserWithCharacter,
-        amount: int,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            target: UserWithCharacter,
+            amount: int,
+            *,
+            reason: str = None,
     ):
         _(
             """`<target>` - A discord User with character
@@ -503,12 +505,12 @@ class GameMaster(commands.Cog):
         )
 
         with handle_message_parameters(
-            content="**{gm}** gave **{amount}** XP to **{target}**.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                amount=amount,
-                target=target,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** gave **{amount}** XP to **{target}**.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    amount=amount,
+                    target=target,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -556,11 +558,11 @@ class GameMaster(commands.Cog):
         )
 
         with handle_message_parameters(
-            content="**{gm}** reset **{target}**'s donator perks.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                target=target,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** reset **{target}**'s donator perks.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    target=target,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -587,11 +589,11 @@ class GameMaster(commands.Cog):
         await ctx.send(_("Successfully reset {target}'s class.").format(target=target))
 
         with handle_message_parameters(
-            content="**{gm}** reset **{target}**'s class.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                target=target,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** reset **{target}**'s class.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    target=target,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -623,17 +625,64 @@ class GameMaster(commands.Cog):
         await ctx.send(_("Item successfully signed."))
 
         with handle_message_parameters(
-            content="**{gm}** signed {itemid} with *{text}*.\n\nReason: *{reason}*".format(
-                gm=ctx.author,
-                itemid=itemid,
-                text=text,
-                reason=reason or f"<{ctx.message.jump_url}>",
-            )
+                content="**{gm}** signed {itemid} with *{text}*.\n\nReason: *{reason}*".format(
+                    gm=ctx.author,
+                    itemid=itemid,
+                    text=text,
+                    reason=reason or f"<{ctx.message.jump_url}>",
+                )
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
                 params=params,
             )
+
+    def load_patron_ids(self):
+        try:
+            with open("patron_ids.json", "r") as file:
+                return json.load(file)
+        except FileNotFoundError:
+            return []
+
+    def save_patron_ids(self):
+        with open("patron_ids.json", "w") as file:
+            json.dump(self.patron_ids, file)
+
+    def add_patron(self, user_id: int):
+        if user_id not in self.patron_ids:
+            self.patron_ids.append(user_id)
+            self.save_patron_ids()  # Save updated patron IDs
+            return True
+        else:
+            return False
+
+    def remove_patron(self, user_id: int):
+        if user_id in self.patron_ids:
+            self.patron_ids.remove(user_id)
+            self.save_patron_ids()  # Save updated patron IDs
+            return True
+        else:
+            return False
+
+    @is_gm()
+    @commands.command(hidden=True, brief=_("Add Patreon"))
+    async def add_patron(self, ctx, user_id: int):
+        """Add a patron by their user ID."""
+        if user_id not in self.patron_ids:
+            self.patron_ids.append(user_id)
+            self.save_patron_ids()  # Use self to access the method
+            await ctx.send(f"User with ID {user_id} has been added as a patron.")
+        else:
+            await ctx.send(f"User with ID {user_id} is already a patron.")
+
+    @is_gm()
+    @commands.command(hidden=True, brief=_("Remove Patreon"))
+    async def remove_patron(self, ctx, user_id: int):
+        """Remove a patron by their user ID."""
+        if self.remove_patron(user_id):
+            await ctx.send(f"User with ID {user_id} has been removed as a patron.")
+        else:
+            await ctx.send(f"User with ID {user_id} is not a patron.")
 
     @is_gm()
     @commands.command(hidden=True, brief=_("Start an auction"))
@@ -742,12 +791,12 @@ class GameMaster(commands.Cog):
     )
     @locale_doc
     async def gmsetcooldown(
-        self,
-        ctx,
-        user: discord.User | int,
-        command: str,
-        *,
-        reason: str = None,
+            self,
+            ctx,
+            user: discord.User | int,
+            command: str,
+            *,
+            reason: str = None,
     ):
         _(
             """`<user>` - A discord User or their User ID
@@ -769,12 +818,12 @@ class GameMaster(commands.Cog):
             await ctx.send(_("The cooldown has been updated!"))
 
             with handle_message_parameters(
-                content="**{gm}** reset **{user}**'s cooldown for the {command} command.\n\nReason: *{reason}*".format(
-                    gm=ctx.author,
-                    user=user,
-                    command=command,
-                    reason=reason or f"<{ctx.message.jump_url}>",
-                )
+                    content="**{gm}** reset **{user}**'s cooldown for the {command} command.\n\nReason: *{reason}*".format(
+                        gm=ctx.author,
+                        user=user,
+                        command=command,
+                        reason=reason or f"<{ctx.message.jump_url}>",
+                    )
             ) as params:
                 await self.bot.http.send_message(
                     self.bot.config.game.gm_log_channel,
@@ -806,10 +855,10 @@ class GameMaster(commands.Cog):
         async with self.bot.pool.acquire() as conn:
             for god in self.bot.config.gods:
                 luck = (
-                    random.randint(
-                        god["boundary_low"] * 100, god["boundary_high"] * 100
-                    )
-                    / 100
+                        random.randint(
+                            god["boundary_low"] * 100, god["boundary_high"] * 100
+                        )
+                        / 100
                 )
                 ids = await conn.fetch(
                     'UPDATE profile SET "luck"=round($1, 2) WHERE "god"=$2 RETURNING'
@@ -866,7 +915,7 @@ class GameMaster(commands.Cog):
         await ctx.send("\n".join(text_collection))
 
         with handle_message_parameters(
-            content=f"**{ctx.author}** updated the global luck"
+                content=f"**{ctx.author}** updated the global luck"
         ) as params:
             await self.bot.http.send_message(
                 self.bot.config.game.gm_log_channel,
@@ -956,7 +1005,7 @@ class GameMaster(commands.Cog):
     @is_gm()
     @commands.command(hidden=True)
     async def runas(
-        self, ctx: Context, member: discord.Member, *, command: str
+            self, ctx: Context, member: discord.Member, *, command: str
     ) -> None:
         """[Owner Only] Run a command as if you were the user."""
         fake_msg = copy.copy(ctx.message)
@@ -1044,11 +1093,11 @@ class GameMaster(commands.Cog):
                                     )
                                     for c in cmd.checks
                                     if (
-                                        name := re.search(
-                                            r"<function ([^.]+)\.", repr(c)
-                                        ).group(1)
-                                    )
-                                    != "update_pet"
+                                           name := re.search(
+                                               r"<function ([^.]+)\.", repr(c)
+                                           ).group(1)
+                                       )
+                                       != "update_pet"
                                 ]
                             )
                         )
@@ -1079,7 +1128,7 @@ class GameMaster(commands.Cog):
     @is_gm()
     @badges.command(hidden=True, name="add")
     async def badges_add(
-        self, ctx: Context, user: UserWithCharacter, badge: BadgeConverter
+            self, ctx: Context, user: UserWithCharacter, badge: BadgeConverter
     ) -> None:
         badges = Badge.from_db(ctx.user_data["badges"])
         badges |= badge
@@ -1093,7 +1142,7 @@ class GameMaster(commands.Cog):
     @is_gm()
     @badges.command(hidden=True, name="rem", aliases=["remove", "delete", "del"])
     async def badges_rem(
-        self, ctx: Context, user: UserWithCharacter, badge: BadgeConverter
+            self, ctx: Context, user: UserWithCharacter, badge: BadgeConverter
     ) -> None:
         badges = Badge.from_db(ctx.user_data["badges"])
         badges ^= badge
@@ -1103,6 +1152,7 @@ class GameMaster(commands.Cog):
         )
 
         await ctx.send("Done")
+
 
 async def setup(bot):
     await bot.add_cog(GameMaster(bot))
