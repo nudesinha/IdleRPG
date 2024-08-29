@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,11 +16,17 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
+import re
 
 import discord
+import io
+from io import BytesIO
 
 from aiohttp import ContentTypeError
+from discord import Embed
 from discord.ext import commands
 
 from classes.badges import Badge
@@ -33,6 +40,7 @@ from cogs.help import chunks
 from cogs.shard_communication import user_on_cooldown as user_cooldown
 from utils import checks, colors
 from utils import misc as rpgtools
+from utils.checks import is_gm
 from utils.i18n import _, locale_doc
 
 
@@ -50,25 +58,21 @@ class Profile(commands.Cog):
 
             Create a new character and start playing IdleRPG.
 
-            By creating a character, you agree to the [bot rules](https://wiki.idlerpg.xyz/index.php?title=Rules#botrules).
-            No idea where to go from here? Check out our [tutorial](https://idlerpg.xyz/tutorial/).
-            If you still have questions afterward, feel free to ask us on the official [support server](https://support.idlerpg.xyz/).
-
             (This command has a cooldown of 1 hour.)"""
         )
         if not name:
             await ctx.send(
                 _(
                     """\
-What shall your character's name be? (Minimum 3 Characters, Maximum 20)
+    What shall your character's name be? (Minimum 3 Characters, Maximum 20)
 
-**Please note that with the creation of a character, you agree to these rules:**
-1) Only up to two characters per individual
-2) No abusing or benefiting from bugs or exploits
-3) Be friendly and kind to other players
-4) Trading in-game content for anything outside of the game is prohibited
+    **Please note that with the creation of a character, you agree to these rules:**
+    1) Only up to two characters per individual
+    2) No abusing or benefiting from bugs or exploits
+    3) Be friendly and kind to other players
+    4) Trading in-game content for anything outside of the game is prohibited
 
-IdleRPG is a global bot, your characters are valid everywhere"""
+    IdleRPG is a global bot, your characters are valid everywhere"""
                 )
             )
 
@@ -82,215 +86,652 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 return await ctx.send(_("Timeout expired. Please retry!"))
             name = name.content
         else:
-            if not await ctx.confirm(
-                _(
-                    """\
-**Please note that with the creation of a character, you agree to these rules:**
-1) Only up to two characters per individual
-2) No abusing or benefiting from bugs or exploits
-3) Be friendly and kind to other players
-4) Trading in-game items or currency for real money or items directly comparable to currency is forbidden
-
-IdleRPG is a global bot, your characters are valid everywhere"""
-                )
-            ):
-                return await ctx.send(_("Creation of your character cancelled."))
-        if len(name) > 2 and len(name) < 21:
-            if "`" in name:
+            if len(name) < 3 or len(name) > 20:
+                await self.bot.reset_cooldown(ctx)
                 return await ctx.send(
-                    _(
-                        "Illegal character (`) found in the name. Please try again and"
-                        " choose another name."
-                    )
+                    _("Character names must be at least 3 characters and up to 20.")
                 )
 
-            async with self.bot.pool.acquire() as conn:
-                await conn.execute(
-                    "INSERT INTO profile VALUES ($1, $2, $3, $4);",
-                    ctx.author.id,
-                    name,
-                    100,
-                    0,
-                )
-                await self.bot.create_item(
-                    name=_("Starter Sword"),
-                    value=0,
-                    type_="Sword",
-                    damage=3.0,
-                    armor=0.0,
-                    owner=ctx.author,
-                    hand="any",
-                    equipped=True,
-                    conn=conn,
-                )
-                await self.bot.create_item(
-                    name=_("Starter Shield"),
-                    value=0,
-                    type_="Shield",
-                    damage=0.0,
-                    armor=3.0,
-                    owner=ctx.author,
-                    hand="left",
-                    equipped=True,
-                    conn=conn,
-                )
-                await self.bot.log_transaction(
-                    ctx,
-                    from_=1,
-                    to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": 100},
-                    conn=conn,
-                )
-            await ctx.send(
-                _(
-                    "Successfully added your character **{name}**! Now use"
-                    " `{prefix}profile` to view your character!"
-                ).format(name=name, prefix=ctx.clean_prefix)
-            )
-        elif len(name) < 3 or len(name) > 20:
-            await ctx.send(
-                _("Character names must be at least 3 characters and up to 20.")
-            )
+        if "`" in name:
             await self.bot.reset_cooldown(ctx)
+            return await ctx.send(
+                _(
+                    "Illegal character (`) found in the name. Please try again and"
+                    " choose another name."
+                )
+            )
+
+        async with self.bot.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO profile VALUES ($1, $2, $3, $4);",
+                ctx.author.id,
+                name,
+                100,
+                0,
+            )
+            await self.bot.create_item(
+                name=_("Starter Sword"),
+                value=0,
+                type_="Sword",
+                element="fire",
+                damage=3.0,
+                armor=0.0,
+                owner=ctx.author,
+                hand="any",
+                equipped=True,
+                conn=conn,
+            )
+            await self.bot.create_item(
+                name=_("Starter Shield"),
+                value=0,
+                type_="Shield",
+                element="fire",
+                damage=0.0,
+                armor=3.0,
+                owner=ctx.author,
+                hand="left",
+                equipped=True,
+                conn=conn,
+            )
+            await self.bot.log_transaction(
+                ctx,
+                from_=1,
+                to=ctx.author.id,
+                subject="Starting out",
+                data={"Gold": 100},
+                conn=conn,
+            )
+        async with self.bot.pool.acquire() as conn:
+            async with conn.transaction():
+                user = await self.bot.fetch_user(ctx.author.id)
+
+                await conn.execute('UPDATE profile SET "discordtag" = $1 WHERE "user" = $2',
+                                   ctx.author.id, user)
+
+        await ctx.send(
+            _(
+                "Successfully added your character **{name}**! Now use"
+                " `{prefix}profile` to view your character!"
+            ).format(name=name, prefix=ctx.clean_prefix)
+        )
+
+    @commands.command(name="profilepref")
+    async def profilepref_command(self, ctx, preference: int):
+        if preference == 1:
+            new_profilestyle = False
+            new_profilestyleText = "the new format"
+        elif preference == 2:
+            new_profilestyle = True
+            new_profilestyleText = "the old format"
+        else:
+            await ctx.send("Invalid preference value. Use `1` for the new style or `2` for the old style.")
+            return
+
+        # Update the profilestyle column in the database
+        async with self.bot.pool.acquire() as conn:
+            update_query = 'UPDATE profile SET profilestyle = $1 WHERE "user" = $2'
+            await conn.execute(update_query, new_profilestyle, ctx.author.id)
+
+        await ctx.send(f"Profile preference updated to {new_profilestyleText}")
 
     @commands.command(aliases=["me", "p"], brief=_("View someone's profile"))
     @locale_doc
-    async def profile(self, ctx, *, person: discord.User = None):
+    async def profile(self, ctx, *, person: str = None):
+        _(
+            """`[person]` - The person whose profile to view; defaults to oneself
+
+            View someone's profile. This will send an image.`"""
+        )
+
+        if person is None:
+            person = str(ctx.author.id)
+
+        id_pattern = re.compile(r'^\d{17,19}$')
+        mention_pattern = re.compile(r'<@!?(\d{17,19})>')
+        match = mention_pattern.match(person)
+
+        if match:
+            person = int(match.group(1))
+            person = await self.bot.fetch_user(int(person))
+
+        elif id_pattern.match(person):
+            person = await self.bot.fetch_user(int(person))
+        else:
+            async with self.bot.pool.acquire() as conn:
+                query = 'SELECT "user" FROM profile WHERE discordtag = $1'
+                user_id = await conn.fetchval(query, person)
+            person = await self.bot.fetch_user(int(user_id))
+
+        targetid = person.id
+        discordtag = person.display_name
+
+        async with self.bot.pool.acquire() as conn:
+            # Fetch the profilestyle column for the given user by either discordtag or userid
+            profilestyle_query = '''
+                SELECT profilestyle FROM profile 
+                WHERE "user" = $1 OR discordtag = $2
+            '''
+            profilestyle_result = await conn.fetchval(profilestyle_query, targetid, discordtag)
+
+            # Convert the result to a boolean (assuming profilestyle is a boolean column)
+            profilestyle = bool(profilestyle_result) if profilestyle_result is not None else False
+
+        if not profilestyle:
+            person = person or ctx.author
+            targetid = person.id
+
+            async with self.bot.pool.acquire() as conn:
+                profile = await conn.fetchrow(
+                    'SELECT p.*, g.name AS guild_name FROM profile p LEFT JOIN guild g ON (g."id"=p."guild") WHERE "user"=$1;',
+                    targetid,
+                )
+
+                if not profile:
+                    return await ctx.send(
+                        _("**{person}** does not have a character.").format(person=person)
+                    )
+
+                items = await self.bot.get_equipped_items_for(targetid, conn=conn)
+                mission = await self.bot.get_adventure(targetid)
+
+            right_hand = None
+            left_hand = None
+
+            any_count = sum(1 for i in items if i["hand"] == "any")
+            if len(items) == 2 and any_count == 1 and items[0]["hand"] == "any":
+                items = [items[1], items[0]]
+
+            for i in items:
+                stat = f"{int(i['damage'] + i['armor'])}"
+                if i["hand"] == "both":
+                    right_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "left":
+                    left_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "right":
+                    right_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "any":
+                    if right_hand is None:
+                        right_hand = (i["type"], i["name"], stat)
+                    else:
+                        left_hand = (i["type"], i["name"], stat)
+
+            color = profile["colour"]
+            color = [color["red"], color["green"], color["blue"], color["alpha"]]
+            embed_color = discord.Colour.from_rgb(color[0], color[1], color[2])
+            classes = [class_from_string(c) for c in profile["class"]]
+            icons = [c.get_class_line_name().lower() if c else "none" for c in classes]
+
+            guild_rank = None if not profile["guild"] else profile["guildrank"]
+
+            marriage = (
+                await rpgtools.lookup(self.bot, profile["marriage"], return_none=True)
+                if profile["marriage"]
+                else None
+            )
+
+            if mission:
+                adventure_name = ADVENTURE_NAMES[mission[0]]
+                adventure_time = f"{mission[1]}" if not mission[2] else _("Finished")
+            else:
+                adventure_name = None
+                adventure_time = None
+
+            badge_val = Badge.from_db(profile["badges"])
+            if badge_val:
+                badges = badge_val.to_items_lowercase()
+            else:
+                badges = []
+
+            if targetid == 295173706496475136:
+
+                async with self.bot.trusted_session.post(
+                        f"{self.bot.config.external.okapi_url}/api/genprofile",
+                        json={
+                            "name": profile["name"],
+                            "color": color,
+                            "image": profile["background"],
+                            "race": profile["race"],
+                            "classes": profile["class"],
+                            "profession": "Novice Planter",
+                            "class_icons": icons,
+                            "left_hand_item": left_hand,
+                            "right_hand_item": right_hand,
+                            "level": f"{rpgtools.xptolevel(profile['xp'])}",
+                            "guild_rank": guild_rank,
+                            "guild_name": profile["guild_name"],
+                            "money": f"{profile['money']}",
+                            "pvp_wins": f"{profile['pvpwins']}",
+                            "marriage": marriage,
+                            "god": profile["god"] or _("No God"),
+                            "adventure_name": adventure_name,
+                            "adventure_time": adventure_time,
+                            "badges": badges,
+                        },
+                        headers={"Authorization": self.bot.config.external.okapi_token},
+                ) as req:
+                    if req.status == 200:
+
+                        img = await req.text()
+
+
+
+                    else:
+                        # Error, means try reading the response JSON error
+                        try:
+                            error_json = await req.json()
+                            async with self.bot.pool.acquire() as conn:
+                                # Update the background column in the profile table for the target user
+                                update_query = 'UPDATE profile SET background = 0 WHERE "user" = $1'
+                                await conn.execute(update_query, targetid)
+
+                            return await ctx.send(
+                                _(
+                                    "There was an error processing your image. Reason: {reason} ({detail}). (Due to this, the profile image has been reset)"
+                                ).format(
+                                    reason=error_json["reason"], detail=error_json["detail"]
+                                )
+                            )
+                        except ContentTypeError:
+                            return await ctx.send(
+                                _("Unexpected internal error when generating image.")
+                            )
+                        except Exception:
+                            return await ctx.send(_("Unexpected error when generating image."))
+
+                    async with self.bot.trusted_session.get(img) as resp:
+                        bytebuffer = await resp.read()
+                        if resp.status != 200:
+                            return await ctx.send("Error failed to fetch image")
+
+            else:
+                async with self.bot.trusted_session.post(
+                        f"{self.bot.config.external.okapi_url}/api/genprofile",
+                        json={
+                            "name": profile["name"],
+                            "color": color,
+                            "image": profile["background"],
+                            "race": profile["race"],
+                            "classes": profile["class"],
+                            "profession": "None",
+                            "class_icons": icons,
+                            "left_hand_item": left_hand,
+                            "right_hand_item": right_hand,
+                            "level": f"{rpgtools.xptolevel(profile['xp'])}",
+                            "guild_rank": guild_rank,
+                            "guild_name": profile["guild_name"],
+                            "money": f"{profile['money']}",
+                            "pvp_wins": f"{profile['pvpwins']}",
+                            "marriage": marriage,
+                            "god": profile["god"] or _("No God"),
+                            "adventure_name": adventure_name,
+                            "adventure_time": adventure_time,
+                            "badges": badges,
+                        },
+                        headers={"Authorization": self.bot.config.external.okapi_token},
+                ) as req:
+                    if req.status == 200:
+
+                        img = await req.text()
+
+
+
+                    else:
+                        # Error, means try reading the response JSON error
+                        try:
+                            error_json = await req.json()
+                            async with self.bot.pool.acquire() as conn:
+                                # Update the background column in the profile table for the target user
+                                update_query = 'UPDATE profile SET background = 0 WHERE "user" = $1'
+                                await conn.execute(update_query, targetid)
+
+                            return await ctx.send(
+                                _(
+                                    "There was an error processing your image. Reason: {reason} ({detail}). (Due to this, the profile image has been reset)"
+                                ).format(
+                                    reason=error_json["reason"], detail=error_json["detail"]
+                                )
+                            )
+                        except ContentTypeError:
+                            return await ctx.send(
+                                _("Unexpected internal error when generating image.")
+                            )
+                        except Exception:
+                            return await ctx.send(_("Unexpected error when generating image."))
+
+                    async with self.bot.trusted_session.get(img) as resp:
+                        bytebuffer = await resp.read()
+                        if resp.status != 200:
+                            return await ctx.send("Error failed to fetch image")
+
+            await ctx.send(
+                _("Your Profile:"),
+                file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
+            )
+        else:
+            person = person or ctx.author
+            targetid = person.id
+
+            async with self.bot.pool.acquire() as conn:
+                query = """
+                    SELECT g.name
+                    FROM profile p
+                    JOIN guild g ON p.guild = g.ID
+                    WHERE p.user = $1
+                """
+                guild_name = await conn.fetchval(query, targetid)
+
+            ret = await self.bot.pool.fetch(
+                "SELECT ai.*, i.equipped FROM profile p JOIN allitems ai ON"
+                " (p.user=ai.owner) JOIN inventory i ON (ai.id=i.item) WHERE"
+                ' p."user"=$1 AND ((ai."damage"+ai."armor" BETWEEN $2 AND $3) OR'
+                ' i."equipped") ORDER BY i."equipped" DESC, ai."damage"+ai."armor"'
+                " DESC;",
+                targetid,
+                0,
+                160,
+            )
+
+            # Assuming you have 'name', 'damage', 'armor', and 'type' columns in 'allitems' table
+            equipped_items = [row for row in ret if row['equipped']]
+
+            # Separate variables for up to two equipped items
+            item1 = equipped_items[0] if len(equipped_items) >= 1 else {"name": "None Equipped", "damage": 0,
+                                                                        "armor": 0,
+                                                                        "type": "None"}
+            item2 = equipped_items[1] if len(equipped_items) >= 2 else {"name": "None Equipped", "damage": 0,
+                                                                        "armor": 0,
+                                                                        "type": "None"}
+
+            async with self.bot.pool.acquire() as conn:
+                profile = await conn.fetchrow(
+                    'SELECT p.*, g.name AS guild_name FROM profile p LEFT JOIN guild g ON (g."id"=p."guild") WHERE "user"=$1;',
+                    targetid,
+                )
+
+                if not profile:
+                    return await ctx.send(
+                        _("**{person}** does not have a character.").format(person=person)
+                    )
+
+                items = await self.bot.get_equipped_items_for(targetid, conn=conn)
+                mission = await self.bot.get_adventure(targetid)
+
+            # Apply race bonuses
+            race = profile["race"].lower()  # Assuming the race is stored in lowercase in the database
+
+            damage_total = item1["damage"] + item2["damage"]
+            armor_total = item1["armor"] + item2["armor"]
+            item1_name = item1["name"]
+            item2_name = item2["name"]
+            item1_type = item1["type"]
+            item2_type = item2["type"]
+
+            classes = [class_from_string(c) for c in profile["class"]]
+            icons = [c.get_class_line_name().lower() if c else "none" for c in classes]
+
+            # Assuming you have classes with specific weapon type bonuses
+            classes = {
+                "raider": {"Axe": 5},
+                "mage": {"Wand": 5},
+                "warrior": {"Sword": 5},
+                "ranger": {"Bow": 10},
+                "reaper": {"Scythe": 10},
+                "paladin": {"Hammer": 5},
+                "thief": {"Knife": 5, "Dagger": 5},
+                "paragon": {"Spear": 5}
+            }
+
+            # Initialize bonus
+            class_bonus = 0
+
+            # Check if the user has classes and apply the corresponding bonuses
+            for class_name in icons:
+                class_info = classes.get(class_name.lower(), {})
+                for item in [item1_type, item2_type]:
+                    item_bonus = class_info.get(item, 0)
+                    class_bonus += item_bonus
+
+            # Apply the class bonus to the damage total
+            damage_total += class_bonus
+
+            if race == "human":
+                armor_total += 2
+                damage_total += 2
+            elif race == "orc":
+                armor_total += 4
+            elif race == "dwarf":
+                armor_total += 3
+                damage_total += 1
+            elif race == "jikill":
+                damage_total += 4
+            elif race == "elf":
+                armor_total += 1
+                damage_total += 3
+            elif race == "elf":
+                armor_total += 1
+                damage_total -= 3
+            elif race == "shadeborn":
+                armor_total += 5
+                damage_total -= 1
+
+            right_hand = None
+            left_hand = None
+
+            async with self.bot.pool.acquire() as conn:
+                # Check if the user exists in the battletower table
+                level_query = "SELECT level FROM battletower WHERE id = $1"
+                level_result = await conn.fetchval(level_query, targetid)
+
+                # If the user doesn't exist, set the level to 0
+                level = level_result if level_result is not None else 0
+
+            any_count = sum(1 for i in items if i["hand"] == "any")
+            if len(items) == 2 and any_count == 1 and items[0]["hand"] == "any":
+                items = [items[1], items[0]]
+
+            for i in items:
+                stat = f"{int(i['damage'] + i['armor'])}"
+                if i["hand"] == "both":
+                    right_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "left":
+                    left_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "right":
+                    right_hand = (i["type"], i["name"], stat)
+                elif i["hand"] == "any":
+                    if right_hand is None:
+                        right_hand = (i["type"], i["name"], stat)
+                    else:
+                        left_hand = (i["type"], i["name"], stat)
+
+            color = profile["colour"]
+            color = [color["red"], color["green"], color["blue"], color["alpha"]]
+            embed_color = discord.Colour.from_rgb(color[0], color[1], color[2])
+
+            guild_rank = None if not profile["guild"] else profile["guildrank"]
+
+            marriage = (
+                await rpgtools.lookup(self.bot, profile["marriage"], return_none=True)
+                if profile["marriage"]
+                else None
+            )
+
+            if mission:
+                adventure_name = ADVENTURE_NAMES[mission[0]]
+                adventure_time = f"{mission[1]}" if not mission[2] else _("Finished")
+            else:
+                adventure_name = None
+                adventure_time = None
+
+            badge_val = Badge.from_db(profile["badges"])
+            if badge_val:
+                badges = badge_val.to_items_lowercase()
+            else:
+                badges = []
+
+            async with self.bot.trusted_session.post(
+                    f"ttp://127.0.0.1:3010/api/genprofile",
+                    json={
+                        "name": profile['name'],
+                        "color": color,
+                        "image": 0,
+                        "race": profile['race'],
+                        "classes": profile['class'],
+                        "profession": "None",
+                        "damage": f"{damage_total}",
+                        "defense": f"{armor_total}",
+                        "swordName": f"{item1_name}",
+                        "shieldName": f"{item2_name}",
+                        "level": f"{rpgtools.xptolevel(profile['xp'])}",
+                        "guild_rank": guild_rank,
+                        "guild": guild_name,
+                        "money": profile['money'],
+                        "pvpWins": f"{profile['pvpwins']}",
+                        "marriage": marriage or _("None"),
+                        "god": profile["god"] or _("No God"),
+                        "adventure": adventure_name or _("No Mission"),
+                        "adventure_time": adventure_time,
+                        "icons": icons,
+                        "BT": f"{level}"
+
+                    },
+                    headers={"Authorization": self.bot.config.external.okapi_token},
+            ) as req:
+                img = BytesIO(await req.read())
+                # await ctx.send(f"{profile['class']}")
+                await ctx.send(file=discord.File(fp=img, filename="Profile.png"))
+
+    @user_cooldown(86400)
+    @commands.command(aliases=["drink"], brief=_("View someone's profile"))
+    @locale_doc
+    async def consume(self, ctx, *, potion):
         _(
             """`[person]` - The person whose profile to view; defaults to oneself
 
             View someone's profile. This will send an image.
             For an explanation what all the fields mean, see [this picture](https://wiki.idlerpg.xyz/images/3/35/Profile_explained.png)"""
         )
-        person = person or ctx.author
-        targetid = person.id
+        try:
+            potion = potion.lower()
 
-        async with self.bot.pool.acquire() as conn:
-            profile = await conn.fetchrow(
-                'SELECT p.*, g.name AS guild_name FROM profile p LEFT JOIN guild g ON (g."id"=p."guild") WHERE "user"=$1;',
-                targetid,
-            )
+            async with self.bot.pool.acquire() as conn:
+                reset_query = """
+                SELECT resetpotion
+                FROM profile
+                WHERE "user" = $1;
+                """
+                resetpotion = await conn.fetchval(reset_query, ctx.author.id)
 
-            if not profile:
-                return await ctx.send(
-                    _("**{person}** does not have a character.").format(person=person)
-                )
+            if not resetpotion:
+                await ctx.send("Error: Unable to retrieve reset potion count.")
+                await self.bot.reset_cooldown(ctx)
+                return
 
-            items = await self.bot.get_equipped_items_for(targetid, conn=conn)
-            mission = await self.bot.get_adventure(targetid)
+            if resetpotion < 1:
+                await ctx.send("You don't have enough reset potions.")
+                await self.bot.reset_cooldown(ctx)
+                return
 
-        right_hand = None
-        left_hand = None
-
-        any_count = sum(1 for i in items if i["hand"] == "any")
-        if len(items) == 2 and any_count == 1 and items[0]["hand"] == "any":
-            items = [items[1], items[0]]
-
-        for i in items:
-            stat = f"{int(i['damage'] + i['armor'])}"
-            if i["hand"] == "both":
-                right_hand = (i["type"], i["name"], stat)
-            elif i["hand"] == "left":
-                left_hand = (i["type"], i["name"], stat)
-            elif i["hand"] == "right":
-                right_hand = (i["type"], i["name"], stat)
-            elif i["hand"] == "any":
-                if right_hand is None:
-                    right_hand = (i["type"], i["name"], stat)
-                else:
-                    left_hand = (i["type"], i["name"], stat)
-
-        color = profile["colour"]
-        color = [color["red"], color["green"], color["blue"], color["alpha"]]
-        embed_color = discord.Colour.from_rgb(color[0], color[1], color[2])
-        classes = [class_from_string(c) for c in profile["class"]]
-        icons = [c.get_class_line_name().lower() if c else "none" for c in classes]
-
-        guild_rank = None if not profile["guild"] else profile["guildrank"]
-
-        marriage = (
-            await rpgtools.lookup(self.bot, profile["marriage"], return_none=True)
-            if profile["marriage"]
-            else None
-        )
-
-        if mission:
-            adventure_name = ADVENTURE_NAMES[mission[0]]
-            adventure_time = f"{mission[1]}" if not mission[2] else _("Finished")
-        else:
-            adventure_name = None
-            adventure_time = None
-
-        badge_val = Badge.from_db(profile["badges"])
-        if badge_val:
-            badges = badge_val.to_items_lowercase()
-        else:
-            badges = []
-
-        async with self.bot.trusted_session.post(
-            f"{self.bot.config.external.okapi_url}/api/genprofile",
-            json={
-                "name": profile["name"],
-                "color": color,
-                "image": profile["background"],
-                "race": profile["race"],
-                "classes": profile["class"],
-                "class_icons": icons,
-                "left_hand_item": left_hand,
-                "right_hand_item": right_hand,
-                "level": f"{rpgtools.xptolevel(profile['xp'])}",
-                "guild_rank": guild_rank,
-                "guild_name": profile["guild_name"],
-                "money": f"{profile['money']}",
-                "pvp_wins": f"{profile['pvpwins']}",
-                "marriage": marriage,
-                "god": profile["god"] or _("No God"),
-                "adventure_name": adventure_name,
-                "adventure_time": adventure_time,
-                "badges": badges,
-            },
-            headers={"Authorization": self.bot.config.external.okapi_token},
-        ) as req:
-            if req.status == 200:
-                img = await req.text()
-            else:
-                # Error, means try reading the response JSON error
-                try:
-                    error_json = await req.json()
-                    return await ctx.send(
+            if potion == "reset":
+                if not await ctx.confirm(
                         _(
-                            "There was an error processing your image. Reason: {reason} ({detail})"
+                            f"You are about to consume a `{potion} potion`. Proceed?"
                         ).format(
-                            reason=error_json["reason"], detail=error_json["detail"]
+                            potion=potion
                         )
-                    )
-                except ContentTypeError:
-                    return await ctx.send(
-                        _("Unexpected internal error when generating image.")
-                    )
-                except Exception:
-                    return await ctx.send(_("Unexpected error when generating image."))
+                ):
+                    await ctx.send(_("Class selection cancelled."))
+                    return await self.bot.reset_cooldown(ctx)
 
-        await ctx.send(embed=discord.Embed(colour=embed_color).set_image(url=img))
+                async with self.bot.pool.acquire() as conn:
+                    query = """
+                    SELECT statpoints, statatk, statdef, stathp, resetpotion
+                    FROM profile
+                    WHERE "user" = $1
+                    FOR UPDATE;
+                    """
+
+                    profile = await conn.fetchrow(query, ctx.author.id)
+
+                if not profile:
+                    return await ctx.send("Profile not found.")
+
+                total_stats = profile["statpoints"] + profile["statatk"] + profile["statdef"] + profile["stathp"]
+                async with self.bot.pool.acquire() as conn:
+                    # Update the profile
+                    update_query = """
+                    UPDATE profile
+                    SET statatk = 0, statdef = 0, stathp = 0, statpoints = $1, resetpotion = $2
+                    WHERE "user" = $3;
+                    """
+
+                    await conn.execute(update_query, total_stats, profile["resetpotion"] - 1, ctx.author.id)
+
+                await ctx.send(
+                    "Stats updated successfully. As you drink the reset potion, a wave of dizziness washes over you, making the world spin for a moment. You feel disoriented but also strangely invigorated, as if your very being has been refreshed.")
+
+            else:
+                await ctx.send("Unknown Potion Type")
+                await self.bot.reset_cooldown(ctx)
+                return
+
+
+        except Exception as e:
+            import traceback
+            error_message = f"Error occurred: {e}\n"
+            error_message += traceback.format_exc()
+            await ctx.send(error_message)
+            print(error_message)
 
     @commands.command(
         aliases=["p2", "pp"], brief=_("View someone's profile differently")
     )
     @locale_doc
-    async def profile2(self, ctx, *, target: discord.User = None):
+    async def profile2(self, ctx, *, target: str = None):
         _(
             """`[target]` - The person whose profile to view
 
             View someone's profile. This will send an embed rather than an image and is usually faster."""
         )
+        try:
+            if target:
+                target = target.split()[0]
+
+            if target is None:
+                target = str(ctx.author)
+
+            id_pattern = re.compile(r'^\d{17,19}$')
+            mention_pattern = re.compile(r'<@!?(\d{17,19})>')
+            match = mention_pattern.match(target)
+
+            if match:
+                target = int(match.group(1))
+                target = await self.bot.fetch_user(int(target))
+
+            elif id_pattern.match(target):
+                target = await self.bot.fetch_user(int(target))
+            else:
+                async with self.bot.pool.acquire() as conn:
+                    query = 'SELECT "user" FROM profile WHERE discordtag = $1'
+                    user_id = await conn.fetchval(query, target)
+                target = await self.bot.fetch_user(int(user_id))
+
+            targetid = target.id
+            discordtag = target.display_name
+        except Exception as e:
+            await ctx.send("Unknown User")
+            return
+
+        #000000000000000000000000000000000000000000000000000000000000000000000
         target = target or ctx.author
         rank_money, rank_xp = await self.bot.get_ranks_for(target)
 
         items = await self.bot.get_equipped_items_for(target)
         async with self.bot.pool.acquire() as conn:
             p_data = await conn.fetchrow(
-                'SELECT * FROM profile WHERE "user"=$1;', target.id
+                '''
+                        SELECT * FROM profile 
+                        WHERE "user" = $1 OR discordtag = $2
+                    ''', target.id, discordtag
             )
             if not p_data:
                 return await ctx.send(
@@ -330,6 +771,23 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 else:
                     left_hand = i
 
+        try:
+            if "marriage" in p_data:
+                discord_id = p_data["marriage"]
+                user = await self.bot.fetch_user(discord_id)
+
+                if user:
+                    display_name = user.display_name
+                else:
+                    display_name = "none"
+            else:
+                display_name = "none"
+        except discord.errors.NotFound:
+            display_name = "none"
+        except Exception as e:
+            display_name = "none"
+            await ctx.send(f"An error occurred: {e}")
+
         right_hand = (
             f"{right_hand['name']} - {right_hand['damage'] + right_hand['armor']}"
             if right_hand
@@ -349,6 +807,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 """\
 **Money**: `${money}`
 **Level**: `{level}`
+**Marriage:** `{marriage}`
 **Class**: `{class_}`
 **Race**: `{race}`
 **PvP Wins**: `{pvp}`
@@ -356,6 +815,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             ).format(
                 money=p_data["money"],
                 level=level,
+                marriage=display_name,
                 class_="/".join(p_data["class"]),
                 race=p_data["race"],
                 pvp=p_data["pvpwins"],
@@ -399,16 +859,38 @@ IdleRPG is a global bot, your characters are valid everywhere"""
 
             If you follow a new God (or become Godless), your luck will not update instantly, it will update with everyone else's luck on Monday."""
         )
-        await ctx.send(
-            _(
-                "Your current luck multiplier is `{luck}x` (≈{percent}% {adj} than"
-                " usual (usual=1))."
-            ).format(
-                luck=ctx.character_data["luck"],
-                percent=abs((ctx.character_data["luck"] - 1) * 100),
-                adj=_("more") if ctx.character_data["luck"] > 1 else _("less"),
+        try:
+            luck_value = float(ctx.character_data["luck"])  # Convert Decimal to float
+            if luck_value <= 0.3:
+                Luck = 20
+            else:
+                Luck = ((luck_value - 0.3) / (1.5 - 0.3)) * 80 + 20  # Linear interpolation between 20% and 100%
+            Luck = round(Luck, 2)  # Round to two decimal places
+            luck_booster = await self.bot.get_booster(ctx.author, "luck")
+            if luck_booster:
+                Luck += Luck * 0.25  # Add 25% if luck booster is true
+                Luck = min(Luck, 100)  # Cap luck at 100%
+
+            if luck_booster:
+                calcluck = luck_value * 1.25
+            else:
+                calcluck = luck_value
+
+            # Assuming Luck is a decimal.Decimal object
+            flipped_luck = 100 - float(Luck)
+            if flipped_luck < 0:
+                flipped_luck = float(0)
+            await ctx.send(
+                _(
+                    "Your current luck multiplier is `{luck}x.` "
+                    "This makes your trip chance: `{trip}%`"
+                ).format(
+                    luck=round(calcluck, 2),
+                    trip=round(float(flipped_luck), 2),
+                )
             )
-        )
+        except Exception as e:
+            await ctx.send(e)
 
     @checks.has_char()
     @commands.command(
@@ -429,6 +911,152 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 money=ctx.character_data["money"], author=ctx.author.mention
             )
         )
+
+    @is_gm()
+    @commands.command()
+    async def gmp2(self, ctx, min_xp: int, max_xp: int):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                user_records = await conn.fetch(
+                    'SELECT * FROM profile WHERE xp BETWEEN $1 AND $2;', min_xp, max_xp
+                )
+
+            for user_record in user_records:
+                if user_record['user'] == 1136590782183264308:
+                    await ctx.send(f"Skipping processing for user: {user_record['user']} (Fable Bot)")
+                    continue
+
+                # Show information about the user being processed
+                await ctx.send(f"Processing profile for user: {user_record['user']} XP: {user_record['xp']}")
+
+                target = self.bot.get_user(user_record["user"])
+
+                if target is None:
+                    try:
+                        # Attempt to fetch the user
+                        target = await self.bot.fetch_user(user_record["user"])
+                    except discord.NotFound:
+                        # If fetch fails, user not found
+                        await ctx.send(
+                            f"User with ID {user_record['user']} not found. Proceed with a manual check for this user.")
+                        continue
+                rank_money, rank_xp = await self.bot.get_ranks_for(target)
+
+                items = await self.bot.get_equipped_items_for(target)
+                async with self.bot.pool.acquire() as conn:
+                    p_data = await conn.fetchrow(
+                        'SELECT * FROM profile WHERE "user"=$1;', target.id
+                    )
+                    if not p_data:
+                        return await ctx.send(
+                            _("**{target}** does not have a character.").format(target=target)
+                        )
+                    mission = await self.bot.get_adventure(target)
+                    guild = await conn.fetchval(
+                        'SELECT name FROM guild WHERE "id"=$1;', p_data["guild"]
+                    )
+                try:
+                    colour = p_data["colour"]
+                    colour = discord.Colour.from_rgb(
+                        colour["red"], colour["green"], colour["blue"]
+                    )
+                except ValueError:
+                    colour = 0x000000
+                if mission:
+                    timeleft = str(mission[1]).split(".")[0] if not mission[2] else "Finished"
+
+                right_hand = None
+                left_hand = None
+
+                any_count = sum(1 for i in items if i["hand"] == "any")
+                if len(items) == 2 and any_count == 1 and items[0]["hand"] == "any":
+                    items = [items[1], items[0]]
+
+                for i in items:
+                    if i["hand"] == "both":
+                        right_hand, left_hand = i, i
+                    elif i["hand"] == "left":
+                        left_hand = i
+                    elif i["hand"] == "right":
+                        right_hand = i
+                    elif i["hand"] == "any":
+                        if right_hand is None:
+                            right_hand = i
+                        else:
+                            left_hand = i
+
+                try:
+                    if "marriage" in p_data:
+                        discord_id = p_data["marriage"]
+                        user = await self.bot.fetch_user(discord_id)
+
+                        if user:
+                            display_name = user.display_name
+                        else:
+                            display_name = "none"
+                    else:
+                        display_name = "none"
+                except discord.errors.NotFound:
+                    display_name = "none"
+                except Exception as e:
+                    display_name = "none"
+                    await ctx.send(f"An error occurred: {e}")
+
+                right_hand = (
+                    f"{right_hand['name']} - {right_hand['damage'] + right_hand['armor']}"
+                    if right_hand
+                    else _("None Equipped")
+                )
+                left_hand = (
+                    f"{left_hand['name']} - {left_hand['damage'] + left_hand['armor']}"
+                    if left_hand
+                    else _("None Equipped")
+                )
+                level = rpgtools.xptolevel(p_data["xp"])
+                em = discord.Embed(colour=colour, title=f"{target}: {p_data['name']}")
+                em.set_thumbnail(url=target.display_avatar.url)
+                em.add_field(
+                    name=_("General"),
+                    value=_(
+                        """\
+        **Money**: `${money}`
+        **Level**: `{level}`
+        **Marriage:** `{marriage}`
+        **Class**: `{class_}`
+        **Race**: `{race}`
+        **PvP Wins**: `{pvp}`
+        **Guild**: `{guild}`"""
+                    ).format(
+                        money=p_data["money"],
+                        level=level,
+                        marriage=display_name,
+                        class_="/".join(p_data["class"]),
+                        race=p_data["race"],
+                        pvp=p_data["pvpwins"],
+                        guild=guild,
+                    ),
+                )
+                em.add_field(
+                    name=_("Ranks"),
+                    value=_("**Richest**: `{rank_money}`\n**XP**: `{rank_xp}`").format(
+                        rank_money=rank_money, rank_xp=rank_xp
+                    ),
+                )
+                em.add_field(
+                    name=_("Equipment"),
+                    value=_("Right Hand: {right_hand}\nLeft Hand: {left_hand}").format(
+                        right_hand=right_hand, left_hand=left_hand
+                    ),
+                )
+                if mission:
+                    em.add_field(name=_("Mission"), value=f"{mission[0]} - {timeleft}")
+                await ctx.send(embed=em)
+                await asyncio.sleep(2)
+
+            await ctx.send("Profiles processing complete.")
+
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
 
     @checks.has_char()
     @commands.command(brief=_("Show a player's current XP"))
@@ -493,10 +1121,11 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             result.add_field(
                 name=f"{weapon['name']} {eq}",
                 value=_(
-                    "ID: `{id}`, Type: `{type_}` (uses {hand} hand(s)) with {statstr}."
+                    "ID: `{id}`, Element: `{element}` Type: `{type_}` (uses {hand} hand(s)) with {statstr}."
                     " Value is **${value}**{signature}"
                 ).format(
                     id=weapon["id"],
+                    element=weapon["element"],
                     type_=weapon["type"],
                     hand=weapon["hand"],
                     statstr=statstr,
@@ -512,15 +1141,188 @@ IdleRPG is a global bot, your characters are valid everywhere"""
         )
         return result
 
+    def invembedd(self, ctx, reset_potions_chunk, current_page, max_page):
+        result = discord.Embed(
+            title=_("{user}'s Inventory").format(user=ctx.author.display_name),
+            colour=discord.Colour.blurple(),
+        )
+        for reset_potion in reset_potions_chunk:
+            result.add_field(
+                name="<:Resetpotion2:1245040954382090270> - Reset Potion",
+                value=f"Quantity: {reset_potion}",
+                inline=False
+            )
+        result.set_footer(
+            text=_("Page {page} of {maxpages}").format(
+                page=current_page + 1, maxpages=max_page + 1
+            )
+        )
+        return result
+
     @checks.has_char()
-    @commands.command(aliases=["inv", "i"], brief=_("Show your gear items"))
+    @commands.command(aliases=["i", "inv"], brief=_("Show your gear items"))
     @locale_doc
     async def inventory(
-        self,
-        ctx,
-        itemtype: str | None = "All",
-        lowest: IntFromTo(0, 101) = 0,
-        highest: IntFromTo(0, 101) = 101,
+            self,
+            ctx,
+    ):
+        try:
+            await ctx.send(
+                "weapons has moved to `$armory` with aliases `$ar` and `$arm` to make room for a future update.")
+
+            await ctx.send(
+                "Related commands `$consume <type>`")
+            #<:resetpotion: 1245034461960081409>
+
+            _(
+                """`[itemtype]` - The type of item to show; defaults to all items
+                `[lowest]` - The lower boundary of items to show; defaults to 0
+                `[highest]` - The upper boundary of items to show; defaults to 101
+    
+                Show your gear items. Items that are in the market will not be shown.
+    
+                Gear items can be equipped, sold and given away, or upgraded and merged to make them stronger.
+                You can gain gear items by completing adventures, opening crates, or having your pet hunt for them, if you are a ranger.
+    
+                To sell unused items for their value, use `{prefix}merch`. To put them up on the global player market, use `{prefix}sell`."""
+            )
+            itemtype = 'All'
+
+            if itemtype == "All":
+                async with self.bot.pool.acquire() as conn:
+                    ret = await conn.fetch(
+                        'SELECT * FROM profile WHERE "user" = $1;',
+                        ctx.author.id,
+                    )
+
+            if not ret or ret[0]['resetpotion'] == 0:
+                return await ctx.send(_("Your inventory is empty."))
+
+            reset_potions = [item['resetpotion'] for item in ret]
+            chunks_size = 5
+            reset_potions_chunks = [reset_potions[i:i + chunks_size] for i in range(0, len(reset_potions), chunks_size)]
+            max_page = len(reset_potions_chunks) - 1
+            embeds = [
+                self.invembedd(ctx, chunk, idx, max_page)
+                for idx, chunk in enumerate(reset_potions_chunks)
+            ]
+
+            await self.bot.paginator.Paginator(extras=embeds).paginate(ctx)
+        except Exception as e:
+            import traceback
+            error_message = f"Error occurred: {e}\n"
+            error_message += traceback.format_exc()
+            await ctx.send(error_message)
+            print(error_message)
+
+    def lootembed(self, ctx, ret, currentpage, maxpage):
+        result = discord.Embed(
+            title=_("{user} has the following loot items.").format(user=ctx.disp),
+            colour=discord.Colour.blurple(),
+        )
+        for item in ret:
+            element = item.get("element", "Unknown")  # Accessing the "element" from the item data
+
+            result.add_field(
+                name=f"<:resetpotion: 1245034461960081409> - Reset Potion",  # Including element in the name of the item
+                value=_("Amount: `{id}` Value is **{value}**").format(
+                    id=ret[0]['resetpotion'], value=0
+                ),
+                inline=False,
+            )
+
+        return result
+
+    @checks.has_char()
+    @commands.command(aliases=["sp"], brief=_("Show your gear items"))
+    @locale_doc
+    async def statpoints(self, ctx):
+        # Fetch stat points for the user
+        query = 'SELECT "statpoints" FROM profile WHERE "user" = $1;'
+        result = await self.bot.pool.fetch(query, ctx.author.id)
+        if not result:
+            await ctx.send("No character data found.")
+            return
+
+        player_data = result[0]
+        points = player_data["statpoints"]
+
+        # Creating a clean and structured embed
+        embed = Embed(title="Stat Points", description="Overview of your stat points and how to redeem them.",
+                      color=0x3498db)
+        embed.add_field(name="Your Stat Points", value=f"You currently have **{points}** unused stat points.",
+                        inline=False)
+        embed.add_field(name="How to Redeem", value="Redeem your stat points using the commands below:", inline=False)
+        embed.add_field(name="Commands",
+                        value="`$spr <type> <amount>` or `$statpointredeem <type> <amount>`\n- Types: `health/hp`, `defense/def`, `attack/atk`\n- Example: `$spr atk 5`",
+                        inline=False)
+        embed.add_field(name="Bonuses",
+                        value="Raider bonuses:\n- **Attack**: `+0.1`\n- **Defense**: `+0.1`\n- **Health**: `+50`",
+                        inline=False)
+        embed.set_footer(text="Ensure you have sufficient stat points before redeeming.")
+
+        # Send the embed
+        await ctx.send(embed=embed)
+
+    @checks.has_char()
+    @user_cooldown(120)
+    @commands.command(aliases=["spr"], brief=_("Show your gear items"))
+    @locale_doc
+    async def statpointsredeem(self, ctx, type: str, amount: int):
+        # Validate type
+        type = type.lower()  # Handle case insensitivity
+        valid_types = {
+            "def": "statdef",
+            "defense": "statdef",
+            "attack": "statatk",
+            "atk": "statatk",
+            "health": "stathp",
+            "hp": "stathp",
+        }
+
+        if type not in valid_types:
+            await ctx.send(
+                _("Invalid type specified. Please use 'def', 'defense', 'attack', 'atk', 'health', or 'hp'."))
+            return
+
+        # Fetch current stat points
+        query = 'SELECT "statpoints" FROM profile WHERE "user" = $1;'
+        result = await self.bot.pool.fetch(query, ctx.author.id)
+        if not result:
+            await ctx.send(_("No character data found."))
+            return
+
+        player_data = result[0]
+        points = player_data["statpoints"]
+
+        # Check if user has enough points
+        if points < amount:
+            await ctx.send(_("You do not have enough stat points to redeem."))
+            return
+
+        if not await ctx.confirm(
+                _("Are you sure you want to redeem {amount} {type} points?").format(amount=amount, type=type)):
+            return await ctx.send(_("Redeeming cancelled."))
+
+        # Calculate new stat points and update the profile
+        new_stat_points = points - amount
+        stat_column = valid_types[type]
+        update_query = f'UPDATE profile SET "statpoints" = $1, "{stat_column}" = "{stat_column}" + $2 WHERE "user" = $3;'
+        await self.bot.pool.execute(update_query, new_stat_points, amount, ctx.author.id)
+
+        # Confirmation message
+        await ctx.send(
+            _(f"Successfully redeemed {amount} points to {type}. You now have {new_stat_points} stat points remaining."))
+
+    @checks.has_char()
+    @commands.command(aliases=["arm", "ar"], brief=_("Show your gear items"))
+    @locale_doc
+    async def armory(
+            self,
+            ctx,
+            itemtype: str | None = "All",
+            lowest: IntFromTo(0, 101) = 0,
+            highest: IntFromTo(0, 101) = 160,
     ):
         _(
             """`[itemtype]` - The type of item to show; defaults to all items
@@ -587,18 +1389,16 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             colour=discord.Colour.blurple(),
         )
         for item in ret:
+            element = item.get("element", "Unknown")  # Accessing the "element" from the item data
+
             result.add_field(
-                name=item["name"],
+                name=f"{item['name']}",  # Including element in the name of the item
                 value=_("ID: `{id}` Value is **{value}**").format(
                     id=item["id"], value=item["value"]
                 ),
                 inline=False,
             )
-        result.set_footer(
-            text=_("Page {page} of {maxpages}").format(
-                page=currentpage + 1, maxpages=maxpage + 1
-            )
-        )
+
         return result
 
     @checks.has_char()
@@ -780,8 +1580,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 else:
                     if len(olditems) < 2:
                         if (
-                            item["hand"] != "any"
-                            and olditems[0]["hand"] == item["hand"]
+                                item["hand"] != "any"
+                                and olditems[0]["hand"] == item["hand"]
                         ):
                             await conn.execute(
                                 'UPDATE inventory SET "equipped"=False WHERE'
@@ -790,7 +1590,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                             )
                             put_off = [olditems[0]["id"]]
                     elif (
-                        item["hand"] == "left" or item["hand"] == "right"
+                            item["hand"] == "left" or item["hand"] == "right"
                     ) and num_any < 2:
                         item_to_remove = [
                             i for i in olditems if i["hand"] == item["hand"]
@@ -920,7 +1720,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
             max_ = item[stat] + 5
             main_hand = item["hand"]
             if (main > 40 and main_hand != "both") or (
-                main > 81 and main_hand == "both"
+                    main > 81 and main_hand == "both"
             ):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(
@@ -989,10 +1789,10 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 )
 
         if not await ctx.confirm(
-            _(
-                "Are you sure you want to upgrade this item: {item}? It will cost"
-                " **${pricetopay}**."
-            ).format(item=item["name"], pricetopay=pricetopay)
+                _(
+                    "Are you sure you want to upgrade this item: {item}? It will cost"
+                    " **${pricetopay}**."
+                ).format(item=item["name"], pricetopay=pricetopay)
         ):
             return await ctx.send(_("Weapon upgrade cancelled."))
         if not await checks.has_money(self.bot, ctx.author.id, pricetopay):
@@ -1017,8 +1817,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 ctx,
                 from_=ctx.author.id,
                 to=2,
-                subject="money",
-                data={"Amount": pricetopay},
+                subject="Upgrade",
+                data={"Gold": pricetopay},
                 conn=conn,
             )
         await ctx.send(
@@ -1037,7 +1837,7 @@ IdleRPG is a global bot, your characters are valid everywhere"""
     @commands.command(brief=_("Give someone money"))
     @locale_doc
     async def give(
-        self, ctx, money: IntFromTo(1, 100_000_000), other: MemberWithCharacter
+            self, ctx, money: IntFromTo(1, 100_000_000), other: MemberWithCharacter
     ):
         _(
             """`<money>` - The amount of money to give to the other person, cannot exceed 100,000,000
@@ -1045,6 +1845,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
 
             Gift money! It will be removed from you and added to the other person."""
         )
+        if ctx.author.id == 823030177025753100 and other.id == 295173706496475136:
+            return await ctx.send(_("Nice try bish!"))
         if other == ctx.author:
             return await ctx.send(_("No cheating!"))
         elif other == ctx.me:
@@ -1070,8 +1872,8 @@ IdleRPG is a global bot, your characters are valid everywhere"""
                 ctx,
                 from_=ctx.author,
                 to=other,
-                subject="money",
-                data={"Amount": money},
+                subject="give money",
+                data={"Gold": money},
                 conn=conn,
             )
         await ctx.send(
@@ -1137,42 +1939,45 @@ IdleRPG is a global bot, your characters are valid everywhere"""
               - Your alliance's city ownership
               - Your marriage and children"""
         )
-        if not await ctx.confirm(
-            _(
-                "Are you absolutely sure you want to delete your character? React in"
-                " the next 30 seconds to confirm.\n**This cannot be undone.**"
-            )
-        ):
-            return await ctx.send(_("Cancelled deletion of your character."))
-        async with self.bot.pool.acquire() as conn:
-            g = await conn.fetchval(
-                'DELETE FROM guild WHERE "leader"=$1 RETURNING "id";', ctx.author.id
-            )
-            if g:
-                await conn.execute(
-                    'UPDATE profile SET "guildrank"=$1, "guild"=$2 WHERE "guild"=$3;',
-                    "Member",
-                    0,
-                    g,
+        try:
+            if not await ctx.confirm(
+                    _(
+                        "Are you absolutely sure you want to delete your character? React in"
+                        " the next 30 seconds to confirm.\n**This cannot be undone.**"
+                    )
+            ):
+                return await ctx.send(_("Cancelled deletion of your character."))
+            async with self.bot.pool.acquire() as conn:
+                g = await conn.fetchval(
+                    'DELETE FROM guild WHERE "leader"=$1 RETURNING "id";', ctx.author.id
                 )
-                await conn.execute('UPDATE city SET "owner"=1 WHERE "owner"=$1;', g)
-            if partner := ctx.character_data["marriage"]:
+                if g:
+                    await conn.execute(
+                        'UPDATE profile SET "guildrank"=$1, "guild"=$2 WHERE "guild"=$3;',
+                        "Member",
+                        0,
+                        g,
+                    )
+                    await conn.execute('UPDATE city SET "owner"=1 WHERE "owner"=$1;', g)
+                if partner := ctx.character_data["marriage"]:
+                    await conn.execute(
+                        'UPDATE profile SET "marriage"=$1 WHERE "user"=$2;',
+                        0,
+                        partner,
+                    )
                 await conn.execute(
-                    'UPDATE profile SET "marriage"=$1 WHERE "user"=$2;',
-                    0,
+                    'UPDATE children SET "mother"=$1, "father"=0 WHERE ("father"=$1 AND'
+                    ' "mother"=$2) OR ("father"=$2 AND "mother"=$1);',
                     partner,
+                    ctx.author.id,
                 )
-            await conn.execute(
-                'UPDATE children SET "mother"=$1, "father"=0 WHERE ("father"=$1 AND'
-                ' "mother"=$2) OR ("father"=$2 AND "mother"=$1);',
-                partner,
-                ctx.author.id,
+                await self.bot.delete_profile(ctx.author.id, conn=conn)
+            await self.bot.delete_adventure(ctx.author)
+            await ctx.send(
+                _("Successfully deleted your character. Sorry to see you go :frowning:")
             )
-            await self.bot.delete_profile(ctx.author.id, conn=conn)
-        await self.bot.delete_adventure(ctx.author)
-        await ctx.send(
-            _("Successfully deleted your character. Sorry to see you go :frowning:")
-        )
+        except Exception as e:
+            await ctx.send(e)
 
     @checks.has_char()
     @commands.command(aliases=["color"], brief=_("Update your profile color"))

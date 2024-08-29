@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,7 +16,10 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import discord
+import io
 
 from discord.ext import commands
 from discord.ext.commands import BucketType
@@ -49,8 +53,12 @@ class Images(commands.Cog):
             headers={"Authorization": self.bot.config.external.okapi_token},
         ) as r:
             image = await r.text()
+            async with self.bot.trusted_session.get(image) as resp:
+                bytebuffer = await resp.read()
+                if resp.status != 200:
+                    return await ctx.send("Error failed to fetch image")
         await ctx.send(
-            embed=discord.Embed(color=discord.Colour.blurple()).set_image(url=image)
+            file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
         )
 
     @commands.command(brief=_("Defines an avatar's edges"))
@@ -68,8 +76,12 @@ class Images(commands.Cog):
             headers={"Authorization": self.bot.config.external.okapi_token},
         ) as r:
             image = await r.text()
+            async with self.bot.trusted_session.get(image) as resp:
+                bytebuffer = await resp.read()
+                if resp.status != 200:
+                    return await ctx.send("Error failed to fetch image")
         await ctx.send(
-            embed=discord.Embed(color=discord.Colour.blurple()).set_image(url=image)
+            file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
         )
 
     @commands.cooldown(1, 15, BucketType.channel)
@@ -90,8 +102,12 @@ class Images(commands.Cog):
             headers={"Authorization": self.bot.config.external.okapi_token},
         ) as r:
             image = await r.text()
+            async with self.bot.trusted_session.get(image) as resp:
+                bytebuffer = await resp.read()
+                if resp.status != 200:
+                    return await ctx.send("Error failed to fetch image")
         await ctx.send(
-            embed=discord.Embed(color=discord.Colour.blurple()).set_image(url=image)
+            file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
         )
 
     @commands.cooldown(1, 15, BucketType.channel)
@@ -112,8 +128,12 @@ class Images(commands.Cog):
             headers={"Authorization": self.bot.config.external.okapi_token},
         ) as r:
             image = await r.text()
+            async with self.bot.trusted_session.get(image) as resp:
+                bytebuffer = await resp.read()
+                if resp.status != 200:
+                    return await ctx.send("Error failed to fetch image")
         await ctx.send(
-            embed=discord.Embed(color=discord.Colour.blurple()).set_image(url=image)
+            file=discord.File(fp=io.BytesIO(bytebuffer), filename="image.png"),
         )
 
 

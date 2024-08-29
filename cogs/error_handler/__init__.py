@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import traceback
 
 from asyncio import TimeoutError
@@ -127,7 +130,7 @@ class Errorhandler(commands.Cog):
                 await ctx.send(
                     _(
                         "You did not enter a valid crate rarity. Possible ones are:"
-                        " common (c), uncommon (u), rare (r), magic (m), legendary (l) and mystery (myst)."
+                        " common (c), uncommon (u), rare (r), magic (m), legendary (l), mystery (myst), fortune (f) and divine (d)."
                     )
                 )
             elif isinstance(error, InvalidCoinSide):
@@ -365,13 +368,7 @@ class Errorhandler(commands.Cog):
                         scope.set_extra("user_id", str(ctx.author.id))
                         scope.set_tag("command", ctx.command.qualified_name)
                         sentry_sdk.capture_exception(e)
-                await ctx.send(
-                    _(
-                        "The command you tried to use ran into an error. The incident"
-                        " has been reported and the team will work hard to fix the"
-                        " issue!"
-                    )
-                )
+
         await ctx.bot.reset_cooldown(ctx)
         if ctx.command.parent:
             if ctx.command.root_parent.name == "guild" and hasattr(

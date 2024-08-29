@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 import json
 
@@ -22,9 +25,10 @@ from datetime import datetime, timedelta
 from time import time
 from typing import Any
 from uuid import uuid4
+from datetime import timedelta
 
 import discord
-
+import textwrap
 from discord.ext import commands
 
 from cogs.scheduler import Timer
@@ -322,12 +326,12 @@ class Sharding(commands.Cog):
         )
 
     async def handler(
-        self,
-        action: str,
-        expected_count: int,
-        args: dict = {},
-        _timeout: int = 2,
-        scope: str = "bot",
+            self,
+            action: str,
+            expected_count: int,
+            args: dict = {},
+            _timeout: int = 2,
+            scope: str = "bot",
     ):  # TODO: think of a better name
         """
         coro
@@ -388,29 +392,141 @@ class Sharding(commands.Cog):
     @locale_doc
     async def timers(self, ctx):
         _("""Lists all your cooldowns, including your adventure timer.""")
-        cooldowns = await self.bot.redis.execute_command(
-            "KEYS", f"cd:{ctx.author.id}:*"
-        )
-        adv = await self.bot.get_adventure(ctx.author)
-        if not cooldowns and (not adv or adv[2]):
-            return await ctx.send(
-                _("You don't have any active cooldown at the moment.")
+        try:
+            cooldowns = await self.bot.redis.execute_command(
+                "KEYS", f"cd:{ctx.author.id}:*"
             )
-        timers = _("Commands on cooldown:")
-        for key in cooldowns:
-            key = key.decode()
-            cooldown = await self.bot.redis.execute_command("TTL", key)
-            cmd = key.replace(f"cd:{ctx.author.id}:", "")
-            text = _("{cmd} is on cooldown and will be available after {time}").format(
-                cmd=cmd, time=timedelta(seconds=int(cooldown))
-            )
-            timers = f"{timers}\n{text}"
-        if adv and not adv[2]:
-            text = _("Adventure is running and will be done after {time}").format(
-                time=adv[1]
-            )
-            timers = f"{timers}\n{text}"
-        await ctx.send(f"```{timers}```")
+            adv = await self.bot.get_adventure(ctx.author)
+
+            # Create dictionaries to map commands to emojis for different categories
+            emoji_map = {
+                "battle": "⚔️",  # Sword emoji for Battle cooldowns
+                "raidbattle": "⚔️",  # Sword emoji for Battle cooldowns
+                "child": "❤️",  # Heart emoji for Family cooldowns
+                "familyevent": "❤️",  # Heart emoji for Family cooldowns
+                "steal": "🔒",  # Lock emoji for Thief cooldown
+                "class": "🛡️",  # Pet paw emoji for Class cooldowns
+                "fun": "🐾",  # Pet paw emoji for Fun cooldowns
+                "activeadventure": "🏞️",  # Park emoji for Active Adventure
+                "activebattle": "⚔️",  # Sword emoji for Active Battle
+                "date": "❤️",  # Heart emoji for Family Date
+                "tournament": "🏆",  # Trophy emoji for Tournament
+                "raidtournament": "🏆",  # Trophy emoji for Raid Tournament
+                "bless": "🙏",
+            }
+
+            # Create empty lists to store formatted cooldowns for different categories
+            general_cooldowns = []
+            battle_cooldowns = []
+            family_cooldowns = []  # New list for family cooldowns
+            class_cooldowns = []  # New list for class cooldowns
+            adventure_cooldowns = []  # New list for adventure cooldowns
+
+            if not cooldowns and (not adv or adv[2]):
+                embed = discord.Embed(
+                    title=_("Cooldowns"),
+                    description=_("You don't have any active cooldowns at the moment. 🕒"),
+                    color=discord.Color.green()
+                )
+                await ctx.send(embed=embed)
+            else:
+                max_length = 0  # Initialize the maximum length
+                message_lengths = []
+                for key in cooldowns:
+                    key = key.decode()
+                    cooldown = await self.bot.redis.execute_command("TTL", key)
+                    cmd = key.replace(f"cd:{ctx.author.id}:", "").lower()  # Use lowercase for comparison
+                    formatted_time = timedelta(seconds=int(cooldown))
+
+                    # Check the category of the cooldown and add it to the respective list
+                    if cmd in ["battle", "raidbattle"]:
+                        category_cooldowns = battle_cooldowns
+                    elif cmd in ["child", "familyevent", "date"]:
+                        category_cooldowns = family_cooldowns
+                    elif cmd in ["class", "fun", "hunt", "steal", "bless", "gift"]:
+                        category_cooldowns = class_cooldowns
+                    elif cmd in ["adventure", "activebattle"]:
+                        category_cooldowns = adventure_cooldowns
+                    else:
+                        category_cooldowns = general_cooldowns
+
+                    # Get the emoji for the command category
+                    emoji = emoji_map.get(cmd, "⏳")
+
+                    # Format each cooldown message with an emoji and the command name
+                    cooldown_message = f"{emoji} • **`{cmd.capitalize()}`** is on cooldown and will be available after {formatted_time}"
+                    category_cooldowns.append(cooldown_message)
+
+                    # Append the length of the current message to the message_lengths list
+                    message_lengths.append(len(cooldown_message))
+
+                    max_message_length = max(message_lengths)
+
+                # ... (previous code)
+
+                embed = discord.Embed(
+                    title=_("Cooldowns"),
+                    color=discord.Color.purple()
+                )
+
+                if general_cooldowns:
+                    embed.add_field(
+                        name=_("General Cooldowns"),
+                        value="\n".join(general_cooldowns),
+                        inline=False
+                    )
+                    # Add a blank field with a single line of space if there are more fields to follow
+                    if battle_cooldowns or family_cooldowns or class_cooldowns or adventure_cooldowns:
+                        embed.add_field(name="\u200B", value="\n", inline=False)
+
+                if battle_cooldowns:
+                    embed.add_field(
+                        name=_("Battle Cooldowns"),
+                        value="\n".join(battle_cooldowns),
+                        inline=False
+                    )
+                    # Add a blank field with a single line of space if there are more fields to follow
+                    if family_cooldowns or class_cooldowns or adventure_cooldowns:
+                        embed.add_field(name="\u200B", value="\n", inline=False)
+
+                if family_cooldowns:
+                    embed.add_field(
+                        name=_("Family Cooldowns"),
+                        value="\n".join(family_cooldowns),
+                        inline=False
+                    )
+                    # Add a blank field with a single line of space if there are more fields to follow
+                    if class_cooldowns or adventure_cooldowns:
+                        embed.add_field(name="\u200B", value="\n", inline=False)
+
+                if class_cooldowns:
+                    embed.add_field(
+                        name=_("Class Cooldowns"),
+                        value="\n".join(class_cooldowns),
+                        inline=False
+                    )
+                    # Add a blank field with a single line of space if there are more fields to follow
+                    if adventure_cooldowns or adv:
+                        embed.add_field(name="\u200B", value="\n", inline=False)
+
+
+                # ... (continue adding a space between other fields as needed)
+
+                if adv and not adv[2]:
+                    adventure_message = _("⏳ Adventure is running and will be done after {time}").format(
+                        time=adv[1]
+                    )
+                    embed.add_field(
+                        name=_("Adventure Status"),
+                        value=adventure_message,
+                        inline=False
+                    )
+
+
+                # Send the embed
+                await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(e)
 
     @commands.command(aliases=["botstatus", "shards"], brief=_("Show the clusters"))
     @locale_doc

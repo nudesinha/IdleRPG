@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,55 +16,78 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 import datetime
+import json
+import requests
+from io import BytesIO
+from moviepy.editor import AudioFileClip, ImageClip
+import pytesseract
 import os
 import platform
 import re
 import statistics
 import sys
+import time
 
 from collections import defaultdict, deque
 from functools import partial
 
-import aiowiki
+import aiohttp
+import io
+
+from PIL import Image, ImageEnhance, ImageOps, ImageFilter
+from openai import AsyncOpenAI
+
 import discord
 import distro
 import humanize
 import pkg_resources as pkg
 import psutil
+import requests
 
 from discord.ext import commands
 
 from classes.converters import ImageFormat, ImageUrl
 from cogs.help import chunks
 from cogs.shard_communication import next_day_cooldown
+from cogs.shard_communication import user_on_cooldown as user_cooldown
 from utils import random
-from utils.checks import ImgurUploadError, has_char, user_is_patron
+from utils.checks import ImgurUploadError, has_char, user_is_patron, is_gm
 from utils.i18n import _, locale_doc
 from utils.misc import nice_join
 from utils.shell import get_cpu_name
+
+def load_whitelist():
+    with open('whitelist.json', 'r') as file:
+        return json.load(file)
+
+def save_whitelist(data):
+    with open('whitelist.json', 'w') as file:
+        json.dump(data, file, indent=4)
 
 
 class Miscellaneous(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.talk_context = defaultdict(partial(deque, maxlen=3))
-        asyncio.create_task(self.make_wikis())
-
-    async def make_wikis(self):
-        self.bot.wikipedia = aiowiki.Wiki.wikipedia("en", session=self.bot.session)
-        self.bot.idlewiki = aiowiki.Wiki(
-            "https://wiki.idlerpg.xyz/api.php", session=self.bot.session
-        )
+        self.conversations = {}
+        self.ALLOWED_CHANNELS = {
+            1145473586556055672,
+            1152255240654045295,
+            1149193023259951154
+        }
+        self.whitelist = load_whitelist()
 
     async def get_imgur_url(self, url: str):
         async with self.bot.session.post(
-            "https://api.imgur.com/3/image",
-            headers={
-                "Authorization": f"Client-ID {self.bot.config.external.imgur_token}"
-            },
-            json={"image": url, "type": "url"},
+                "https://api.imgur.com/3/image",
+                headers={
+                    "Authorization": f"Client-ID {self.bot.config.external.imgur_token}"
+                },
+                json={"image": url, "type": "url"},
         ) as r:
             json = await r.json()
             try:
@@ -71,6 +95,7 @@ class Miscellaneous(commands.Cog):
             except KeyError:
                 raise ImgurUploadError()
         return short_url
+
 
     @has_char()
     @next_day_cooldown()
@@ -132,18 +157,25 @@ class Miscellaneous(commands.Cog):
             # Silver = 1.5x
             if await user_is_patron(self.bot, ctx.author, "silver"):
                 money = round(money * 1.5)
+
+            result = await self.bot.pool.fetchval('SELECT tier FROM profile WHERE "user" = $1;', ctx.author.id)
+
+            if result >= 3:
+                money = round(money * 3)
+
             async with self.bot.pool.acquire() as conn:
                 await conn.execute(
                     'UPDATE profile SET "money"="money"+$1 WHERE "user"=$2;',
                     money,
                     ctx.author.id,
                 )
+
                 await self.bot.log_transaction(
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": money},
+                    subject="daily",
+                    data={"Gold": money},
                     conn=conn,
                 )
             txt = f"**${money}**"
@@ -180,13 +212,26 @@ class Miscellaneous(commands.Cog):
                 )
             txt = f"**{amt}** {getattr(self.bot.cogs['Crates'].emotes, type_)}"
 
+        async with self.bot.pool.acquire() as conn:
+            await conn.execute(
+                'UPDATE profile SET "freeimage"=$1 WHERE "user"=$2;',
+                3,
+                ctx.author.id,
+            )
+
         await ctx.send(
             _(
-                "You received your daily {txt}!\nYou are on a streak of **{streak}**"
+                "You received your daily {txt} and 3 free images!\nYou are on a streak of **{streak}**"
                 " days!\n*Tip: `{prefix}vote` every 12 hours to get an up to legendary"
                 " crate with possibly rare items!*"
             ).format(txt=txt, money=money, streak=streak, prefix=ctx.clean_prefix)
         )
+
+    @has_char()
+    @commands.command(brief=_("Roll"))
+    @locale_doc
+    async def roll(self, ctx):
+        await ctx.send("🥖")
 
     @has_char()
     @commands.command(brief=_("View your current streak"))
@@ -241,7 +286,7 @@ class Miscellaneous(commands.Cog):
             """View the Patreon page of the bot. The different tiers will grant different rewards.
             View `{prefix}help module Patreon` to find the different commands.
 
-            Thank you for supporting IdleRPG!"""
+            Thank you for supporting Fable RPG!"""
         )
         guild_count = sum(
             await self.bot.cogs["Sharding"].handler(
@@ -260,7 +305,7 @@ If you want to continue using the bot or just help us, please donate a small amo
 Even $1 can help us.
 **Thank you!**
 
-<https://patreon.com/idlerpg>"""
+<https://patreon.com/FableRPG>"""
             ).format(guild_count=guild_count)
         )
 
@@ -270,10 +315,11 @@ Even $1 can help us.
     @locale_doc
     async def source(self, ctx):
         _(
-            """Shows our GitLab page and license.
-            If you want to contribute, feel free to create an account and submit issues and merge requests."""
+            """Shows Idles GitLab page and license alongside our own source as required by AGPLv3 Licensing."""
         )
-        await ctx.send("AGPLv3+\nhttps://git.travitia.xyz/Kenvyra/IdleRPG")
+        await ctx.send("IdleRPG - AGPLv3+\nhttps://git.travitia.xyz/Kenvyra/IdleRPG")
+
+        await ctx.send("Fable - AGPLv3+\nhttps://github.com/PrototypeX37/FableRPG/")
 
     @commands.command(brief=_("Invite the bot to your server."))
     @locale_doc
@@ -281,29 +327,54 @@ Even $1 can help us.
         _(
             """Invite the bot to your server.
 
-            Use this [backup link](https://discord.com/oauth2/authorize?client_id=424606447867789312&scope=bot&permissions=8) in case the above does not work."""
+            Use this https://discord.com/api/oauth2/authorize?client_id=1136590782183264308&permissions
+            =8945276537921&scope=bot"""
         )
         await ctx.send(
             _(
-                "You are running version **{version}** by The IdleRPG"
-                " Developers.\nInvite me! https://invite.idlerpg.xyz"
+                "You are running version **{version}** by The Fable"
+                "Developers.\nInvite me! https://discord.com/api/oauth2/authorize?client_id=1136590782183264308"
+                "&permissions=8945276537921&scope=bot"
             ).format(version=self.bot.version)
         )
 
-    @commands.command(brief=_("Join the Support server"))
-    @locale_doc
-    async def support(self, ctx):
-        _(
-            """Sends you the link to join the official IdleRPG Support server.
+    @commands.command()
+    async def allcommands(self, ctx):
+        """Displays all available commands."""
+        # Assuming static prefix '!'
+        prefix = '$'
+        try:
+            # Collect all commands and format them
+            all_commands = [f"{prefix}{cmd.name}" for cmd in self.bot.commands if not cmd.hidden]
+            all_commands_text = "\n".join(all_commands)
 
-            Use this [backup link](https://discord.gg/MSBatf6) in case the above does not work."""
-        )
-        await ctx.send(
-            _(
-                "Got problems or feature requests? Looking for people to play with?"
-                " Join the support server:\nhttps://support.idlerpg.xyz"
-            )
-        )
+            # Define the maximum length of a message accounting for markdown characters
+            max_length = 2000 - len("```\n```")  # Deduct the length of markdown characters used for formatting
+
+            # Initialize an empty string for the message chunk
+            chunk = ""
+
+            # Iterate over each command and construct message chunks
+            for command in all_commands:
+                # Check if adding this command will exceed the max length
+                if len(chunk) + len(command) + 1 > max_length:  # +1 accounts for newline character
+                    # Send the current chunk and reset it
+                    await ctx.send(f"```\n{chunk}\n```")
+                    chunk = ""
+
+                # Add the command to the chunk
+                chunk += f"{command}\n"
+
+            # Send any remaining commands in the last chunk
+            if chunk:
+                await ctx.send(f"```\n{chunk}\n```")
+
+        except Exception as e:
+            # Send any exceptions that occur
+            await ctx.send(str(e))
+
+
+
 
     @commands.command(brief=_("Shows statistics about the bot"))
     @locale_doc
@@ -341,11 +412,11 @@ Even $1 can help us.
         compiler = re.search(r".*\[(.*)\]", sys.version)[1]
 
         embed = discord.Embed(
-            title=_("IdleRPG Statistics"),
+            title=_("FableRPG Statistics"),
             colour=0xB8BBFF,
             url=self.bot.BASE_URL,
             description=_(
-                "Official Support Server Invite: https://support.idlerpg.xyz"
+                "Official Support Server Invite: Coming Soon"
             ),
         )
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
@@ -357,11 +428,11 @@ Even $1 can help us.
             name=_("Hosting Statistics"),
             value=_(
                 """\
-CPU: **{cpu_name}**
-CPU Usage: **{cpu}%**, **{cores}** cores/**{threads}** threads @ **{freq}** GHz
-RAM Usage: **{ram}%** (Total: **{total_ram}**)
+CPU: **AMD Ryzen Threadripper PRO 7995WX**
+CPU Usage: **{cpu}%**, **96** cores/**192** threads @ **{freq}** GHz
+RAM Usage: **{ram}%** (Total: **127.1 GB**)
 CPU Temperature: **{cpu_temp}°C**
-Python Version **{python}** <:python:445247273065250817>
+Python Version **{python}** 
 discord.py Version **{dpy}**
 Compiler: **{compiler}**
 Operating System: **{osname} {osversion}**
@@ -422,117 +493,221 @@ Average hours of work: **{hours}**"""
             )
         )
 
-    @commands.command(aliases=["cb", "chat"], brief=_("Talk to me"))
-    @locale_doc
-    async def talk(self, ctx, *, text: str):
-        _(
-            """`<text>` - The text to say, must be between 3 and 60 characters.
+    @commands.command()
+    @has_char()
+    async def credits(self, ctx):
+        if ctx.guild.id != 969741725931298857:
+            return
+        creditss = ctx.character_data["imagecredits"]
+        freecredits = ctx.character_data["freeimage"]
 
-            Talk to me! This uses a chatbot AI backend."""
-        )
-        await ctx.typing()
-        if not (3 <= len(text) <= 60):
-            return await ctx.send(
-                _("Text too long or too short. May be 3 to 60 characters.")
-            )
-        self.talk_context[ctx.author.id].append(text)
-        context = list(self.talk_context[ctx.author.id])[:-1]
-        async with self.bot.session.post(
-            "https://public-api.travitia.xyz/talk",
-            json={"text": text, "context": context},
-            headers={"authorization": self.bot.config.external.traviapi},
-        ) as req:
-            json = await req.json()
-        await ctx.send(f"{ctx.author.mention}, {json['response']}")
+        await ctx.send(f"You have **{freecredits}** free images left and a balance of **${creditss}**.")
 
-    @commands.command(brief=_("Our partnered bots"))
-    @locale_doc
-    async def partners(self, ctx):
-        _("""Awesome bots by other coffee-drinking individuals.""")
-        em = discord.Embed(
-            title=_("Partnered Bots"),
-            description=_("Awesome bots made by other people!"),
-            colour=discord.Colour.blurple(),
-        )
-        em.add_field(
-            name="GamesROB",
-            value=_(
-                "Trivia, Hangman, Minesweeper, Connect 4 and more, right from your"
-                " chat! A bot offering non-RPG games made by deprilula28 and"
-                " Fin.\n[top.gg Page](https://top.gg/bot/gamesrob)"
-            ),
-        )
-        em.add_field(
-            name="Cautious Memory",
-            value=_(
-                "Cautious Memory brings wiki-style pages to your server. Use it to"
-                " document who's who in your server, inside jokes, or community lore."
-                " Includes a full featured permissions system to keep your pages"
-                " squeaky clean.\n[top.gg Page](https://top.gg/bot/541707781665718302)"
-            ),
-        )
-        em.add_field(
-            name="Cleverbot",
-            value=_(
-                "Cleverbot is a Discord bot that will chat with you and your"
-                " friends.\n[top.gg Page](https://top.gg/bot/508012980194115595)"
-            ),
-        )
-        await ctx.send(embed=em)
 
-    @commands.command(brief=_("Search wikipedia"))
-    @locale_doc
-    async def wikipedia(self, ctx, *, query: str):
-        _(
-            """`<query>` - The wikipedia query to search for
+    @commands.command()
+    @has_char()
+    @user_cooldown(60)
+    async def imagine(self, ctx, *, prompt):
 
-            Searches Wikipedia for an entry."""
-        )
+
+        if ctx.guild.id != 969741725931298857:
+            return
+        creditss = ctx.character_data["imagecredits"]
+        freecredits = ctx.character_data["freeimage"]
+        # await ctx.send(f"{credits}")
+
+        if ctx.author.id == 295173706496475136:
+            await self.bot.reset_cooldown(ctx)
+
+        if ctx.author.id == 598004694060892183:
+            await self.bot.reset_cooldown(ctx)
+
+        if ctx.author.id == 749263133620568084:
+            await self.bot.reset_cooldown(ctx)
+
+
+
+        if freecredits <= 0:
+
+            if creditss <= 0.03:
+                return await ctx.send(f"You have used up all free images for today. Additional images cost **$0.04**.")
+
         try:
-            page = (await self.bot.wikipedia.opensearch(query))[0]
-            text = await page.summary()
-        except (aiowiki.exceptions.PageNotFound, IndexError):
-            return await ctx.send(_("No wikipedia entry found."))
-        if not text:
-            return await ctx.send(_("Could not parse article summary."))
-        p = commands.Paginator()
-        for line in text.split("\n"):
-            for i in chunks(line, 1900):
-                p.add_line(i)
-        await self.bot.paginator.Paginator(
-            title=page.title, entries=p.pages, length=1
-        ).paginate(ctx)
-
-    @commands.command(aliases=["wiki"], brief=_("Search the Idle Wiki"))
-    @locale_doc
-    async def idlewiki(self, ctx, *, query: str = None):
-        _(
-            """`[query]` - The idlewiki query to search for
-
-            Searches Idle's wiki for an entry."""
-        )
-        if not query:
-            return await ctx.send(
-                _(
-                    "Check out the official IdleRPG Wiki"
-                    " here:\n<https://wiki.idlerpg.xyz/index.php?title=Main_Page>"
-                )
+            if ctx.author.id != 295173706496475136:
+                if ctx.author.id != 598004694060892183:
+                    if len(prompt) > 120:
+                        return await ctx.send("The prompt cannot exceed 120 characters.")
+            await ctx.send("Generating image, please wait. (This can take up to 2 minutes.)")
+            client = AsyncOpenAI(api_key="")
+            response = await client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size="1024x1024",
+                quality="standard",
+                n=1,
             )
+
+            image_url = response.data[0].url
+            async with ctx.typing():
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as resp:
+                        if resp.status != 200:
+                            return await ctx.send('Could not download file...')
+                        data = io.BytesIO(await resp.read())
+                        await ctx.send(f"{ctx.author.mention}, your image is ready!")
+
+                        if freecredits > 0:
+                            async with self.bot.pool.acquire() as connection:
+                                await connection.execute(
+                                    f'UPDATE profile SET "freeimage" = freeimage -1 WHERE "user" = {ctx.author.id}'
+                                )
+                        else:
+                            async with self.bot.pool.acquire() as connection:
+                                await connection.execute(
+                                    f'UPDATE profile SET "imagecredits" = imagecredits -0.04 WHERE "user" = {ctx.author.id}'
+                                )
+                        await ctx.send(file=discord.File(data, 'image.png'))
+        except Exception as e:
+            await ctx.send(f"An error has occurred")
+
+    @commands.command()
+    @user_cooldown(80)
+    @has_char()
+    async def imaginebig(self, ctx, *, prompt):
+        if ctx.guild.id != 969741725931298857:
+            return
+        creditss = ctx.character_data["imagecredits"]
+        freecredits = ctx.character_data["freeimage"]
+        # await ctx.send(f"{credits}")
+
+        if ctx.author.id == 295173706496475136:
+            await self.bot.reset_cooldown(ctx)
+
+        if ctx.author.id != 598004694060892183:
+            await self.bot.reset_cooldown(ctx)
+
+        if creditss <= 0.11:
+            return await ctx.send(f"You do not have enough credits for this model. Additional images cost **$0.12**.")
+
         try:
-            page = (await self.bot.idlewiki.opensearch(query))[0]
-            text = await page.summary()
-        except (aiowiki.exceptions.PageNotFound, IndexError):
-            return await ctx.send(_("No entry found."))
+            if ctx.author.id != 295173706496475136:
+                if ctx.author.id != 598004694060892183:
+                    if len(prompt) > 120:
+                        return await ctx.send("The prompt cannot exceed 120 characters.")
+            await ctx.send("Generating HD image, please wait. (This can take up to 2 minutes.)")
+            client = AsyncOpenAI(api_key="redacted")
+            response = await client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size="1792x1024",
+                quality="hd",
+                n=1,
+            )
+
+            image_url = response.data[0].url
+            async with ctx.typing():
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(image_url) as resp:
+                        if resp.status != 200:
+                            return await ctx.send('Could not download file...')
+                        data = io.BytesIO(await resp.read())
+                        await ctx.send(f"{ctx.author.mention}, your image is ready!")
+                        async with self.bot.pool.acquire() as connection:
+                            await connection.execute(
+                                f'UPDATE profile SET "imagecredits" = imagecredits -0.12 WHERE "user" = {ctx.author.id}'
+                            )
+                        await ctx.send(file=discord.File(data, 'image.png'))
+        except Exception as e:
+            await ctx.send(f"An error has occurred")
+
+    @commands.command(name='talk', help='Ask ChatGPT a question!')
+    async def talk(self, ctx, *, question):
+        # Check if the command is invoked in one of the allowed channels
+
+        if ctx.guild.id != 969741725931298857:
+            return
+        user_id = ctx.author.id
+
+        # Add the user's new message to their conversation history
+        if user_id not in self.conversations:
+            self.conversations[user_id] = []
+        try:
+            # Fetch the response from GPT-3 using the entire conversation as context
+            response = await self.get_gpt_response_async(
+                self.conversations[user_id] + [{"role": "user", "content": question}])
+        except Exception as e:
+            await ctx.send(e)
+        # Append the user message and response to the conversation
+        self.conversations[user_id].extend([
+            {"role": "user", "content": question},
+            {"role": "system", "content": response}
+        ])
+
+        # Ensure the conversation doesn't exceed 100 messages
+        while len(self.conversations[user_id]) > 400:
+            self.conversations[user_id].pop(0)  # remove the oldest message
+
+        # Split and send the response back to the user
+        for chunk in self.split_message(response):
+            await ctx.send(chunk)
+
+    from discord.ext import commands
+
+
+    @commands.command()
+    async def cookie(self, ctx, target_member: discord.Member):
+        await ctx.send(
+            f"**{target_member.display_name}**, you've been given a cookie by **{ctx.author.display_name}**. 🍪")
+
+    @commands.command()
+    async def ice(self, ctx, target_member: discord.Member):
+        await ctx.send(
+            f"{target_member.mention}, here is your ice: 🍨!")
+
+    @commands.command(name='wipe', help='Clear your conversation history with the bot.')
+    async def clear_memory(self, ctx):
+        if ctx.guild.id != 969741725931298857:
+            return
+        user_id = ctx.author.id
+        if user_id in self.conversations:
+            del self.conversations[user_id]
+            await ctx.send("Your conversation history has been cleared!")
         else:
-            if not text:
-                return await ctx.send(_("No content to display."))
-        p = commands.Paginator()
-        for line in text.split("\n"):
-            for i in chunks(line, 1900):
-                p.add_line(i)
-        await self.bot.paginator.Paginator(
-            title=page.title, entries=p.pages, length=1
-        ).paginate(ctx)
+            await ctx.send("You don't have any conversation history to clear.")
+
+    def split_message(self, content, limit=1909):
+        """Split a message into chunks under a specified limit without breaking words."""
+        chunks = []
+        while len(content) > limit:
+            split_index = content.rfind(' ', 0, limit)
+            if split_index == -1:
+                split_index = limit
+            chunk = content[:split_index]
+            chunks.append(chunk)
+            content = content[split_index:].strip()  # Remove leading space for next chunk
+        chunks.append(content)
+        return chunks
+
+    async def get_gpt_response_async(self, conversation_history):
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer redacted",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "gpt-4o",
+            "messages": conversation_history
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=data) as response:
+                    response_data = await response.json()
+                    return response_data['choices'][0]['message']['content'].strip()
+        except aiohttp.ClientError as e:
+            return f"Error connecting to OpenAI: {str(e)}"
+        except Exception as e:
+            return f"Unexpected error! Is the pipeline server running?"
 
     @commands.command(
         aliases=["pages", "about"], brief=_("Info about the bot and related sites")

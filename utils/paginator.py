@@ -1,4 +1,23 @@
 """
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+"""
 Original, main Paginator class written by EvieePy
 Modified by the IdleRPG Project
 
@@ -199,7 +218,7 @@ class Paginator:
         prepend: str = "",
         append: str = "",
         length: int = 10,
-        timeout: int = 30,
+        timeout: int = 60,
         return_index: bool = False,
     ):
         self.extras = extras
@@ -303,39 +322,44 @@ class ChooseLong(discord.ui.View):
 
     @discord.ui.button(label="First", style=discord.ButtonStyle.blurple, row=0)
     async def first(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        await interaction.response.defer()
         if self.current != 0:
             self.current = 0
             await self.update()
 
     @discord.ui.button(label="Previous", style=discord.ButtonStyle.blurple, row=0)
     async def previous(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        await interaction.response.defer()
         if self.current != 0:
             self.current -= 1
             await self.update()
 
     @discord.ui.button(label="Stop", style=discord.ButtonStyle.red, row=0)
     async def stop_button(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        await interaction.response.defer()
         await self.on_timeout()
         self.stop()
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.blurple, row=0)
     async def next(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        await interaction.response.defer()
         if self.current != self.max:
             self.current += 1
             await self.update()
 
     @discord.ui.button(label="Last", style=discord.ButtonStyle.blurple, row=0)
     async def last(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
+        await interaction.response.defer()
         if self.current != self.max:
             self.current = self.max
             await self.update()

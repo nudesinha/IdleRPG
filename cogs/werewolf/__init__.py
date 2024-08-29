@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 
 import discord
@@ -167,7 +170,7 @@ class Werewolf(commands.Cog):
                 view=view,
             )
 
-            await asyncio.sleep(60 * 10)
+            await asyncio.sleep(60)
 
             view.stop()
             players = list(view.joined)
@@ -235,7 +238,7 @@ class Werewolf(commands.Cog):
             await game.run()
         except Exception as e:
             await ctx.send(
-                _("An error happened during the Werewolf. Please try again!")
+                _(f"An error happened during the Werewolf. Please try again! {e}")
             )
             del self.games[ctx.channel.id]
             raise e

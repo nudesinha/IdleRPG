@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import base64
 import hashlib
 import hmac
@@ -57,6 +60,76 @@ levels = {
     28: 4608707,
     29: 5023490,
     30: 5475604,
+    31: 5925840,
+    32: 6410045,
+    33: 6902290,
+    34: 7402301,
+    35: 7910794,
+    36: 8427765,
+    37: 8953760,
+    38: 9488506,
+    39: 10032241,
+    40: 10583004,
+    41: 11156825,
+    42: 11754414,
+    43: 12376591,
+    44: 13024180,
+    45: 13698005,
+    46: 14398990,
+    47: 15128061,
+    48: 15886144,
+    49: 16674165,
+    50: 17493050,
+    51: 18387074,
+    52: 19333253,
+    53: 20333276,
+    54: 21387918,
+    55: 22497764,
+    56: 23663511,
+    57: 24885871,
+    58: 26165573,
+    59: 27503363,
+    60: 28899921,
+    61: 30355952,
+    62: 31872102,
+    63: 33449063,
+    64: 35087585,
+    65: 36788450,
+    66: 38552692,
+    67: 40379243,
+    68: 42267915,
+    69: 44218563,
+    70: 46231077,
+    71: 48305323,
+    72: 50441191,
+    73: 52638557,
+    74: 54897311,
+    75: 57217362,
+    76: 59598698,
+    77: 62041117,
+    78: 64544522,
+    79: 67108700,
+    80: 69733548,
+    81: 72418968,
+    82: 75164856,
+    83: 77971106,
+    84: 80837610,
+    85: 83764261,
+    86: 86750950,
+    87: 89807570,
+    88: 92933913,
+    89: 96129864,
+    90: 99395110,
+    91: 102828457,
+    92: 105837301,
+    93: 108922368,
+    94: 112083087,
+    95: 115318825,
+    96: 118629779,
+    97: 122015966,
+    98: 125477357,
+    99: 129013829,
+    100: 132625263,
 }
 
 
@@ -83,12 +156,12 @@ def xptolevel(xp):
             return level
         elif xp < point:
             return level - 1
-    return 30
+    return 50
 
 
 def xptonextlevel(xp):
     level = xptolevel(xp)
-    if level == 30:
+    if level == 100:
         return "Infinity"
     else:
         nextxp = levels[level + 1]
@@ -96,7 +169,7 @@ def xptonextlevel(xp):
 
 
 def calcchance(
-    sword, shield, dungeon, level, luck, returnsuccess=False, booster=False, bonus=0
+        sword, shield, dungeon, level, luck, returnsuccess=False, booster=False, bonus=0
 ):
     if returnsuccess is False:
         val1 = sword + shield + 75 - dungeon * 7 + bonus - level / Decimal("2")
@@ -112,12 +185,12 @@ def calcchance(
         if booster:
             randomn -= 25
         success = (
-            sword
-            + shield
-            + 75
-            - (dungeon * (random.randint(1, 7)))
-            + random.choice([level, -level / Decimal("2")])
-            + bonus
+                sword
+                + shield
+                + 75
+                - (dungeon * (random.randint(1, 7)))
+                + random.choice([level, -level / Decimal("2")])
+                + bonus
         )
         if success >= 0:
             success = round(success * luck)

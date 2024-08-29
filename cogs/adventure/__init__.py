@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,24 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import asyncio
 
 from datetime import datetime, timedelta
@@ -38,41 +57,126 @@ from cogs.shard_communication import user_on_cooldown as user_cooldown
 from utils import items
 from utils import misc as rpgtools
 from utils import random
-from utils.checks import has_adventure, has_char, has_no_adventure
+import random as randomm
+from utils.checks import has_adventure, has_char, has_no_adventure, is_class, is_gm
 from utils.i18n import _, locale_doc
 from utils.maze import Cell, Maze
 
+from classes.classes import (
+    ALL_CLASSES_TYPES,
+    Mage,
+    Paragon,
+    Raider,
+    Ranger,
+    Ritualist,
+    Thief,
+    Warrior,
+    Paladin,
+    SantasHelper,
+)
+
 ADVENTURE_NAMES = {
-    1: "Spider Cave",
-    2: "Troll Bridge",
-    3: "A Night Alone Outside",
-    4: "Ogre Raid",
-    5: "Proof Of Confidence",
-    6: "Dragon Canyon",
-    7: "Orc Tower",
-    8: "Seamonster's Temple",
-    9: "Dark Wizard's Castle",
-    10: "Slay The Famous Dragon Arzagor",
-    11: "Search For Excalibur",
-    12: "Find Atlantis",
-    13: "Tame A Phoenix",
-    14: "Slay The Death Reaper",
-    15: "Meet Adrian In Real Life",
-    16: "The League Of Vecca",
-    17: "The Gem Expedition",
-    18: "Gambling Problems?",
-    19: "The Necromancer Of Kord",
-    20: "Last One Standing",
-    21: "Gambling Problems? Again?",
-    22: "Insomnia",
-    23: "Illuminated",
-    24: "Betrayal",
-    25: "IdleRPG",
-    26: "Learn Programming",
-    27: "Scylla's Temple",
-    28: "Trial Of Osiris",
-    29: "Meet The War God In Hell",
-    30: "Divine Intervention",
+    1: "Mystic Grove",
+    2: "Rising Mist Bridge",
+    3: "Moonlit Solitude",
+    4: "Orcish Ambush",
+    5: "Trials of Conviction",
+    6: "Canyon of Flames",
+    7: "Sentinel Spire",
+    8: "Abyssal Sanctum",
+    9: "Shadowmancer's Citadel",
+    10: "Dragon's Bane: Arzagor's End",
+    11: "Quest for Avalon's Blade",
+    12: "Seekers of Lemuria",
+    13: "Phoenix's Embrace",
+    14: "Requiem of Shadows",
+    15: "Abysswalker's Challenge",
+    16: "Vecca's Legacy",
+    17: "Gemstone Odyssey",
+    18: "Shrek's Swamp",
+    19: "Kord's Resurgence",
+    20: "Arena of Endurance",
+    21: "Quest for the Astral Relic",
+    22: "Nocturnal Enigma",
+    23: "Luminous Quest",
+    24: "Web of Betrayal",
+    25: "Realm of Indolence",
+    26: "Forgotten Valley",
+    27: "Temple of the Sirens",
+    28: "Osiris' Judgment",
+    29: "War God's Parley",
+    30: "Divine Convergence",
+    31: "Shadow Convergence",
+    32: "Abyssal Titans",
+    33: "Cursed Bloodmoon",
+    34: "Pandemonium Rifts",
+    35: "Dread Plague",
+    36: "Apocalypse Eclipse",
+    37: "Eldritch Horrors",
+    38: "Crimson Pact",
+    39: "Serpent's Dominion",
+    40: "Chrono Reckoning",
+    41: "Cursed Ascendancy",
+    42: "Elder Eclipse",
+    43: "Netherstorm Siege",
+    44: "Ragnarok's Awakening",
+    45: "Abyssal Inferno",
+    46: "Eclipse of Oblivion",
+    47: "Voidwalker's Dominion",
+    48: "Doomsday Eclipse",
+    49: "Worldbreaker Cataclysm",
+    50: "Elder God's Reckoning",
+    51: "Cataclysmic Eruption",
+    52: "Abyssal Cataclysm",
+    53: "Infernal Collapse",
+    54: "Titan's Wrath",
+    55: "Demonic Ruination",
+    56: "Armageddon's Echo",
+    57: "Cosmic Decay",
+    58: "Hellfire Conflagration",
+    59: "Chaos Ascendant",
+    60: "Realm's End",
+    61: "Pestilent Apocalypse",
+    62: "Void Annihilation",
+    63: "Darkstar Convergence",
+    64: "Solar Destruction",
+    65: "Endless Nightfall",
+    66: "Pandora's Fury",
+    67: "Eternal Dread",
+    68: "Blood Moon Despair",
+    69: "Ruins of Despair",
+    70: "Wyrm's Cataclysm",
+    71: "Harbinger of Doom",
+    72: "Annihilator's Onslaught",
+    73: "Infinite Void",
+    74: "Endbringer's Wrath",
+    75: "Calamity's Dawn",
+    76: "Eldritch Devastation",
+    77: "Doom Herald's Reign",
+    78: "Hellgate Incursion",
+    79: "Maelstrom's Core",
+    80: "Dark Realm's Cataclysm",
+    81: "Chthonic End",
+    82: "Cosmic Ruin",
+    83: "Endless Oblivion",
+    84: "Eternal Oblivion",
+    85: "Demon King's Reign",
+    86: "Soulfire Cataclysm",
+    87: "Abyssal Ruination",
+    88: "Eclipse of Despair",
+    89: "Nightmare's End",
+    90: "Ragnarok's Fall",
+    91: "Hellstorm's Wrath",
+    92: "Doomsday's Demise",
+    93: "Oblivion's Maw",
+    94: "Netherworld Collapse",
+    95: "Eldritch Cataclysm",
+    96: "Dread Overlord's Fury",
+    97: "Infernal Apocalypse",
+    98: "Darkstar's End",
+    99: "World's End Catastrophe",
+    100: "End of All Things",
+
 }
 
 DIRECTION = Literal["n", "e", "s", "w"]
@@ -92,12 +196,12 @@ class ActiveAdventureAction(Enum):
 
 class ActiveAdventureDirectionView(discord.ui.View):
     def __init__(
-        self,
-        user: discord.User,
-        future: asyncio.Future[ActiveAdventureAction],
-        possible_actions: set[ActiveAdventureAction],
-        *args,
-        **kwargs,
+            self,
+            user: discord.User,
+            future: asyncio.Future[ActiveAdventureAction],
+            possible_actions: set[ActiveAdventureAction],
+            *args,
+            **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
@@ -175,10 +279,12 @@ class ActiveAdventureDirectionView(discord.ui.View):
         return interaction.user.id == self.user.id
 
     async def handle(
-        self, interaction: Interaction, action: ActiveAdventureAction
+            self, interaction: Interaction, action: ActiveAdventureAction
     ) -> None:
         self.stop()
         self.future.set_result(action)
+        msg = await interaction.response.defer()
+        await msg.edit(content="New content")
 
     async def on_timeout(self) -> None:
         self.future.set_exception(asyncio.TimeoutError())
@@ -186,7 +292,7 @@ class ActiveAdventureDirectionView(discord.ui.View):
 
 class ActiveAdventure:
     def __init__(
-        self, ctx: Context, attack: int, defense: int, width: int = 15, height: int = 15
+            self, ctx: Context, attack: int, defense: int, width: int = 15, height: int = 15
     ) -> None:
         self.ctx = ctx
 
@@ -252,11 +358,11 @@ class ActiveAdventure:
                 status_2 = _("You healed yourself for {hp} HP").format(hp=self.heal_hp)
 
             if (
-                enemy_action == ActiveAdventureAction.AttackEnemy
-                and action == ActiveAdventureAction.Defend
+                    enemy_action == ActiveAdventureAction.AttackEnemy
+                    and action == ActiveAdventureAction.Defend
             ) or (
-                enemy_action == ActiveAdventureAction.Defend
-                and action == ActiveAdventureAction.AttackEnemy
+                    enemy_action == ActiveAdventureAction.Defend
+                    and action == ActiveAdventureAction.AttackEnemy
             ):
                 status_1 = _("Attack blocked.")
             else:
@@ -280,10 +386,10 @@ class ActiveAdventure:
     async def reward(self, treasure: bool = True) -> int:
         val = self.attack + self.defense
         if treasure:
-            money = random.randint(val, val * 25)
+            money = random.randint(1200, val * 80)
         else:
             # The adventure end reward
-            money = random.randint(val * 5, val * 100)
+            money = random.randint(val * 80, val * 215)
         async with self.ctx.bot.pool.acquire() as conn:
             await conn.execute(
                 'UPDATE profile SET "money"="money"+$1 WHERE "user"=$2;',
@@ -294,8 +400,8 @@ class ActiveAdventure:
                 self.ctx,
                 from_=1,
                 to=self.ctx.author.id,
-                subject="money",
-                data={"Amount": money},
+                subject="AA Reward",
+                data={"Gold": money},
                 conn=conn,
             )
 
@@ -438,37 +544,34 @@ class Adventure(commands.Cog):
     )
     @locale_doc
     async def adventures(self, ctx):
-        _(
-            """Shows all adventures, their names, descriptions, and your chances to beat them in picture form.
-            Your chances are determined by your equipped items, race and class bonuses, your level and your God-given luck."""
-        )
         damage, defense = await self.bot.get_damage_armor_for(ctx.author)
         level = rpgtools.xptolevel(ctx.character_data["xp"])
         luck_booster = await self.bot.get_booster(ctx.author, "luck")
 
-        chances = []
-        for adv in range(1, 31):
-            success = rpgtools.calcchance(
-                damage,
-                defense,
-                adv,
-                int(level),
-                ctx.character_data["luck"],
-                booster=luck_booster,
-                returnsuccess=False,
-            )
-            chances.append(success)
+        embeds = []
+        levels_per_page = 10
+        level_count = 1
 
-        async with self.bot.trusted_session.post(
-            f"{self.bot.config.external.okapi_url}/api/genadventures",
-            json={"percentages": chances},
-            headers={"Authorization": self.bot.config.external.okapi_token},
-        ) as r:
-            images = await r.json()
+        while level_count <= 50:
+            embed = discord.Embed(title="Adventure Success Chances")
+            for _ in range(levels_per_page):
+                if level_count >= 51:
+                    break
+                success = rpgtools.calcchance(
+                    damage,
+                    defense,
+                    level_count,
+                    int(level),
+                    ctx.character_data["luck"],
+                    booster=luck_booster,
+                    returnsuccess=False,
+                )
+                embed.add_field(name=f"Level {level_count}", value=f"Success Chance: {success}%", inline=False)
+                level_count += 1
+            embeds.append(embed)
 
-        pages = [discord.Embed().set_image(url=image) for image in images]
-
-        await self.bot.paginator.Paginator(extras=pages).paginate(ctx)
+        # Use your paginator to display the list of embeds
+        await self.bot.paginator.Paginator(extras=embeds).paginate(ctx)
 
     @has_char()
     @has_no_adventure()
@@ -476,7 +579,7 @@ class Adventure(commands.Cog):
         aliases=["mission", "a"], brief=_("Sends your character on an adventure.")
     )
     @locale_doc
-    async def adventure(self, ctx, adventure_number: IntFromTo(1, 30)):
+    async def adventure(self, ctx, adventure_number: IntFromTo(1, 50)):
         _(
             """`<adventure_number>` - a whole number from 1 to 30
 
@@ -510,7 +613,15 @@ class Adventure(commands.Cog):
                 time = time * 0.95
         if await self.bot.get_booster(ctx.author, "time"):
             time = time / 2
+
         await self.bot.start_adventure(ctx.author, adventure_number, time)
+
+        await ctx.send(
+            _(
+                "Successfully sent your character out on an adventure. Use"
+                " `{prefix}status` to see the current status of the mission."
+            ).format(prefix=ctx.clean_prefix)
+        )
 
         async with self.bot.pool.acquire() as conn:
             remind_adv = await conn.fetchval(
@@ -528,15 +639,7 @@ class Adventure(commands.Cog):
                     conn=conn,
                 )
 
-        await ctx.send(
-            _(
-                "Successfully sent your character out on an adventure. Use"
-                " `{prefix}status` to see the current status of the mission."
-            ).format(prefix=ctx.clean_prefix)
-        )
-
     @has_char()
-    @has_no_adventure()
     @user_cooldown(7200)
     @commands.command(aliases=["aa"], brief=_("Go out on an active adventure."))
     @locale_doc
@@ -562,18 +665,134 @@ class Adventure(commands.Cog):
             (This command has a cooldown of 30 minutes)"""
         )
         if not await ctx.confirm(
-            _(
-                "You are going to be in a labyrinth. There are enemies,"
-                " treasures and hidden traps. Reach the exit in the bottom right corner"
-                " for a huge extra bonus!\nAre you ready?\n\nTip: Use a silent channel"
-                " for this, you may want to read all the messages I will send."
-            )
+                _(
+                    "You are going to be in a labyrinth. There are enemies,"
+                    " treasures and hidden traps. Reach the exit in the bottom right corner"
+                    " for a huge extra bonus!\nAre you ready?\n\nTip: Use a silent channel"
+                    " for this, you may want to read all the messages I will send."
+                )
         ):
             return
 
         attack, defense = await self.bot.get_damage_armor_for(ctx.author)
 
         await ActiveAdventure(ctx, int(attack), int(defense), width=12, height=12).run()
+
+    async def get_blessed_value(self, user_id):
+        """Retrieve the blessed value from Redis or use default of 1."""
+        value = await self.bot.redis.get(str(user_id))
+        return float(value) if value else 1.0
+
+    async def get_blessing_ttl(self, user_id):
+        """Retrieve the TTL of a blessing from Redis."""
+        ttl = await self.bot.redis.ttl(str(user_id))
+        return ttl
+
+    @has_char()
+    @commands.command(aliases=["isblessed"], brief=_("check your bless"))
+    async def checkbless(self, ctx, user: discord.Member = None):
+        """Check the blessing value of a user. If no user is mentioned, check the command caller."""
+
+        # If no user is mentioned, check the command caller.
+        if not user:
+            user = ctx.author
+
+        # Get the blessing value
+        value = await self.get_blessed_value(user.id)
+        ttl = await self.get_blessing_ttl(user.id)
+
+        # Convert the TTL into hours and minutes
+        hours, remainder = divmod(ttl, 3600)
+        minutes, _ = divmod(remainder, 60)
+
+        if value == 1:
+            await ctx.send(f"{user.name} has no current blessing.")
+        else:
+            if ttl > 0:
+                await ctx.send(
+                    f"{user.name} is blessed with a value of {value} for the next {hours} hours and {minutes} minutes!")
+            else:
+                await ctx.send(f"{user.name} has no current blessing.")
+
+    @is_class(Paladin)
+    @has_char()
+    @user_cooldown(86400)
+    @commands.command(aliases=["bl"], brief=_("Blesses a User"))
+    @locale_doc
+    async def bless(self, ctx, blessed_user: discord.Member):
+        _(
+            """**[PALADINS ONLY]**
+            
+            This command allows Paladins to bestow blessings upon other users. When a user is blessed, they receive a multiplier that can grant bonus XP on adventures. The strength of the blessing is determined by the grade of the Paladin bestowing it.
+
+            You can use the `$checkbless` command to see the current bless status of a user. This command will show if a user is blessed, the strength of their blessing, and the remaining duration of the blessing.
+
+            Be cautious! You cannot bless yourself, and once you bless someone, the blessing remains active for 24 hours."""
+        )
+        try:
+            """Bless a user by setting their blessing value in Redis."""
+
+            grade = 0
+            for class_ in ctx.character_data["class"]:
+                c = class_from_string(class_)
+                if c and c.in_class_line(Paladin):
+                    grade = c.class_grade()
+            BlessMultiplier = grade * 1 * 0.25 + 1
+
+            # Check if the author is trying to bless themselves
+            if ctx.author.id == blessed_user.id:
+                await ctx.send("You cannot bless yourself!")
+                return await self.bot.reset_cooldown(ctx)
+
+            # Check if the user is already blessed
+            current_bless_value = await self.bot.redis.get(str(blessed_user.id))
+            if current_bless_value:
+                await ctx.send(f"{blessed_user.mention} is already blessed!")
+                return await self.bot.reset_cooldown(ctx)
+
+            # Ask for confirmation
+            # Create a visually appealing embed for the confirmation message
+            embed = discord.Embed(
+                title="🌟 Bless Confirmation 🌟",
+                description=f"{blessed_user.mention}, {ctx.author.mention} wants to bestow a blessing upon you. Do you accept?",
+                color=0x4CAF50
+            )
+            embed.set_thumbnail(
+                url="https://i.ibb.co/cDH4MMT/bless-spell-baldursgate3-wiki-guide-150px-2.png")
+            embed.add_field(name="User", value=blessed_user.mention, inline=True)
+            embed.add_field(name="Blessing Value", value=BlessMultiplier, inline=True)
+            embed.set_footer(text=f"Requested by {ctx.author}",
+                             icon_url="https://i.ibb.co/cDH4MMT/bless-spell-baldursgate3-wiki-guide-150px-2.png")
+            embed.timestamp = ctx.message.created_at
+
+            embed_msg = await ctx.send(embed=embed)
+
+            # Ask the user to confirm by reacting to the message
+            confirmation_prompt = f"{blessed_user.mention} Please react below to confirm or decline."
+            try:
+                if not await ctx.confirm(message=confirmation_prompt, user=blessed_user):
+                    await embed_msg.delete()
+                    await ctx.send("Blessing cancelled.")
+                    await self.bot.reset_cooldown(ctx)
+                    return
+            except Exception as e:
+                await self.bot.reset_cooldown(ctx)
+                await embed_msg.delete()
+
+            # If confirmation received, proceed with the rest of the code
+            await embed_msg.delete()  # delete the embed message
+            if current_bless_value:
+                await ctx.send(f"{blessed_user.mention} is already blessed!")
+                return await self.bot.reset_cooldown(ctx)
+            # Set the value in Redis with a TTL of 24 hours (86400 seconds)
+            await self.bot.redis.setex(str(blessed_user.id), 86400, BlessMultiplier)
+
+            # Send a confirmation message
+            await ctx.send(f"{blessed_user.mention} has been blessed by {ctx.author.mention}!")
+
+        except Exception as e:
+            await self.bot.reset_cooldown(ctx)
+            await ctx.send("Blessing timed out.")
 
     @has_char()
     @has_adventure()
@@ -594,163 +813,195 @@ class Adventure(commands.Cog):
             If you are in a guild, its guild bank will receive 10% of the amount of gold extra.
             If you are married, your partner will receive a portion of your gold extra as well, [check the wiki](https://wiki.idlerpg.xyz/index.php?title=Family#Adventure_Bonus) for the exact portion."""
         )
-        num, time, done = ctx.adventure_data
+        try:
+            num, time, done = ctx.adventure_data
 
-        if not done:
-            # TODO: Embeds ftw
-            return await ctx.send(
-                embed=discord.Embed(
-                    title=_("Adventure Status"),
-                    description=_(
-                        "You are currently on an adventure with difficulty"
-                        " **{difficulty}**.\nTime until it completes:"
-                        " **{time_left}**\nAdventure name: **{adventure}**"
-                    ).format(
-                        difficulty=num,
-                        time_left=time,
-                        adventure=ADVENTURE_NAMES[num],
-                    ),
-                    colour=self.bot.config.game.primary_colour,
+            if not done:
+                return await ctx.send(
+                    embed=discord.Embed(
+                        title=_("Adventure Status"),
+                        description=_(
+                            "You are currently on an adventure with difficulty"
+                            " **{difficulty}**.\nTime until it completes:"
+                            " **{time_left}**\nAdventure name: **{adventure}**"
+                        ).format(
+                            difficulty=num,
+                            time_left=time,
+                            adventure=ADVENTURE_NAMES[num],
+                        ),
+                        colour=self.bot.config.game.primary_colour,
+                    )
                 )
-            )
 
-        damage, armor = await self.bot.get_damage_armor_for(ctx.author)
+            damage, armor = await self.bot.get_damage_armor_for(ctx.author)
 
-        luck_booster = await self.bot.get_booster(ctx.author, "luck")
-        current_level = int(rpgtools.xptolevel(ctx.character_data["xp"]))
-        luck_multiply = ctx.character_data["luck"]
-        if buildings := await self.bot.get_city_buildings(ctx.character_data["guild"]):
-            bonus = buildings["adventure_building"]
-        else:
-            bonus = 0
-        success = rpgtools.calcchance(
-            damage,
-            armor,
-            num,
-            current_level,
-            luck_multiply,
-            returnsuccess=True,
-            booster=bool(luck_booster),
-            bonus=bonus,
-        )
-        await self.bot.delete_adventure(ctx.author)
-
-        if not success:
-            await self.bot.pool.execute(
-                'UPDATE profile SET "deaths"="deaths"+1 WHERE "user"=$1;', ctx.author.id
-            )
-            return await ctx.send(
-                embed=discord.Embed(
-                    title=_("Adventure Failed"),
-                    description=_("You died on your mission. Try again!"),
-                    colour=0xFF0000,
-                )
-            )
-
-        gold = round(random.randint(20 * num, 60 * num) * luck_multiply)
-
-        if await self.bot.get_booster(ctx.author, "money"):
-            gold = int(gold * 1.25)
-
-        xp = random.randint(250 * num, 500 * num)
-        chance_of_loot = 5 if num == 1 else 5 + 1.5 * num
-
-        classes = [class_from_string(c) for c in ctx.character_data["class"]]
-        if any(c.in_class_line(Ritualist) for c in classes if c):
-            chance_of_loot *= 2  # can be 100 in a 30
-
-        async with self.bot.pool.acquire() as conn:
-            if (random.randint(1, 1000)) > chance_of_loot * 10:
-                minstat = round(num * luck_multiply)
-                maxstat = round(5 + int(num * 1.5) * luck_multiply)
-
-                item = await self.bot.create_random_item(
-                    minstat=(minstat if minstat > 0 else 1) if minstat < 35 else 35,
-                    maxstat=(maxstat if maxstat > 0 else 1) if maxstat < 35 else 35,
-                    minvalue=round(num * luck_multiply),
-                    maxvalue=round(num * 50 * luck_multiply),
-                    owner=ctx.author,
-                    conn=conn,
-                )
-                storage_type = "inventory"
-
+            luck_booster = await self.bot.get_booster(ctx.author, "luck")
+            current_level = int(rpgtools.xptolevel(ctx.character_data["xp"]))
+            luck_multiply = ctx.character_data["luck"]
+            if buildings := await self.bot.get_city_buildings(ctx.character_data["guild"]):
+                bonus = buildings["adventure_building"]
             else:
-                item = items.get_item()
+                bonus = 0
+
+            if current_level > 30:
+                bonus = 5
+
+            success = rpgtools.calcchance(
+                damage,
+                armor,
+                num,
+                current_level,
+                luck_multiply,
+                returnsuccess=True,
+                booster=bool(luck_booster),
+                bonus=bonus,
+            )
+            await self.bot.delete_adventure(ctx.author)
+
+            if not success:
+                await self.bot.pool.execute(
+                    'UPDATE profile SET "deaths"="deaths"+1 WHERE "user"=$1;', ctx.author.id
+                )
+                return await ctx.send(
+                    embed=discord.Embed(
+                        title=_("Adventure Failed"),
+                        description=_("You died on your mission. Try again!"),
+                        colour=0xFF0000,
+                    )
+                )
+
+            gold = round(random.randint(20 * num, 60 * num) * luck_multiply)
+
+            if await self.bot.get_booster(ctx.author, "money"):
+                gold = int(gold * 1.25)
+
+            # Get the bless multiplier from Redis
+            bless_multiplier = await self.bot.redis.get(str(ctx.author.id))
+            if bless_multiplier:
+                bless_multiplier = float(bless_multiplier)
+            else:
+                bless_multiplier = 1.0
+
+            # Calculate XP with the blessing multiplier
+            xp = round(random.randint(250 * num, 500 * num) * bless_multiplier)
+
+            chance_of_loot = 5 if num == 1 else 5 + 1.5 * num
+
+            classes = [class_from_string(c) for c in ctx.character_data["class"]]
+            if any(c.in_class_line(Ritualist) for c in classes if c):
+                chance_of_loot *= 2  # can be 100 in a 30
+
+            async with self.bot.pool.acquire() as conn:
+                if (random.randint(1, 1000)) > chance_of_loot * 10:
+                    minstat = round(num * luck_multiply)
+                    maxstat = round(5 + int(num * 1.5) * luck_multiply)
+
+                    item = await self.bot.create_random_item(
+                        minstat=(minstat if minstat > 0 else 1) if minstat < 35 else 35,
+                        maxstat=(maxstat if maxstat > 0 else 1) if maxstat < 35 else 35,
+                        minvalue=round(num * luck_multiply),
+                        maxvalue=round(num * 50 * luck_multiply),
+                        owner=ctx.author,
+                        conn=conn,
+                    )
+                    storage_type = "inventory"
+
+                else:
+                    item = items.get_item()
+                    await conn.execute(
+                        'INSERT INTO loot ("name", "value", "user") VALUES ($1, $2, $3);',
+                        item["name"],
+                        item["value"],
+                        ctx.author.id,
+                    )
+                    storage_type = "loot"
+
+                if guild := ctx.character_data["guild"]:
+                    await conn.execute(
+                        'UPDATE guild SET "money"="money"+$1 WHERE "id"=$2;',
+                        int(gold / 10),
+                        guild,
+                    )
+
+                # EASTER
+                # ---------------
+                #eggs = int(num ** 1.2 * random.randint(3, 6))
+
                 await conn.execute(
-                    'INSERT INTO loot ("name", "value", "user") VALUES ($1, $2, $3);',
-                    item["name"],
-                    item["value"],
+                    'UPDATE profile SET "money"="money"+$1, "xp"="xp"+$2,'
+                    ' "completed"="completed"+1 WHERE "user"=$3;',
+                    gold,
+                    xp,
                     ctx.author.id,
                 )
-                storage_type = "loot"
 
-            if guild := ctx.character_data["guild"]:
-                await conn.execute(
-                    'UPDATE guild SET "money"="money"+$1 WHERE "id"=$2;',
-                    int(gold / 10),
-                    guild,
+                if partner := ctx.character_data["marriage"]:
+                    await conn.execute(
+                        'UPDATE profile SET "money"="money"+($1*(1+"lovescore"/1000000))'
+                        ' WHERE "user"=$2;',
+                        int(gold / 2),
+                        partner,
+                    )
+
+                await self.bot.log_transaction(
+                    ctx,
+                    from_=1,
+                    to=ctx.author.id,
+                    subject="adventure",
+                    data={
+                        "Gold": gold,
+                        "Item": item["name"],  # compare against loot names if necessary
+                        "Value": item["value"],
+                    },
+                    conn=conn,
                 )
 
-            await conn.execute(
-                'UPDATE profile SET "money"="money"+$1, "xp"="xp"+$2,'
-                ' "completed"="completed"+1 WHERE "user"=$3;',
-                gold,
-                xp,
-                ctx.author.id,
-            )
+                # float_snowflakes = randomm.uniform(num * 10, num * 25)
+                # snowflakes = round(float_snowflakes)
 
-            if partner := ctx.character_data["marriage"]:
-                await conn.execute(
-                    'UPDATE profile SET "money"="money"+($1*(1+"lovescore"/1000000))'
-                    ' WHERE "user"=$2;',
-                    int(gold / 2),
-                    partner,
+                await ctx.send(
+                    embed=discord.Embed(
+                        title=_("Adventure Completed"),
+                        description=_(
+                            "You have completed your adventure and received **${gold}** as"
+                            " well as a new item:\n**{item}** added to your"
+                            " `{prefix}{storage_type}`\nType: **{type}**\n{stat}Value:"
+                            " **{value}**\nExperience gained: **{xp}**."
+                            #"\nEggs found: **{eggs}**"
+                            # "\nSnowflakes gained: **{snowflakes}**."
+                        ).format(
+                            gold=gold,
+                            type=_("Loot item") if storage_type == "loot" else item["type"],
+                            item=item["name"],
+                            stat=""
+                            if storage_type == "loot"
+                            else _("Damage: **{damage}**\n").format(damage=item["damage"])
+                            if item["damage"]
+                            else _("Armor: **{armor}**\n").format(armor=item["armor"]),
+                            value=item["value"],
+                            prefix=ctx.clean_prefix,
+                            storage_type=storage_type,
+                            xp=xp,
+                            #eggs=eggs,
+                        ),
+                        colour=0x00FF00,
+                    )
                 )
 
-            await self.bot.log_transaction(
-                ctx,
-                from_=1,
-                to=ctx.author.id,
-                subject="adventure",
-                data={
-                    "Gold": gold,
-                    "Item": item["name"],  # compare against loot names if necessary
-                    "Value": item["value"],
-                },
-                conn=conn,
-            )
+                # await conn.execute(
+                # 'UPDATE profile SET "snowflakes"="snowflakes"+$1 WHERE "user"=$2',
+                # snowflakes,
+                # ctx.author.id,
+                # )
 
-            # TODO: Embeds ftw
-            await ctx.send(
-                embed=discord.Embed(
-                    title=_("Adventure Completed"),
-                    description=_(
-                        "You have completed your adventure and received **${gold}** as"
-                        " well as a new item:\n**{item}** added to your"
-                        " `{prefix}{storage_type}`\nType: **{type}**\n{stat}Value:"
-                        " **{value}**\nExperience gained: **{xp}**."
-                    ).format(
-                        gold=gold,
-                        type=_("Loot item") if storage_type == "loot" else item["type"],
-                        item=item["name"],
-                        stat=""
-                        if storage_type == "loot"
-                        else _("Damage: **{damage}**\n").format(damage=item["damage"])
-                        if item["damage"]
-                        else _("Armor: **{armor}**\n").format(armor=item["armor"]),
-                        value=item["value"],
-                        prefix=ctx.clean_prefix,
-                        storage_type=storage_type,
-                        xp=xp,
-                    ),
-                    colour=0x00FF00,
-                )
-            )
+                new_level = int(rpgtools.xptolevel(ctx.character_data["xp"] + xp))
 
-            new_level = int(rpgtools.xptolevel(ctx.character_data["xp"] + xp))
+                if current_level != new_level:
+                    await self.bot.process_levelup(ctx, new_level, current_level)
 
-            if current_level != new_level:
-                await self.bot.process_levelup(ctx, new_level, current_level)
+        except Exception as e:
+            await ctx.send(f"{e}")
+            pass
 
     @has_char()
     @has_adventure()
@@ -761,7 +1012,7 @@ class Adventure(commands.Cog):
             """Cancels your ongoing adventure and allows you to start a new one right away. You will not receive any rewards if you cancel your adventure."""
         )
         if not await ctx.confirm(
-            _("Are you sure you want to cancel your current adventure?")
+                _("Are you sure you want to cancel your current adventure?")
         ):
             return await ctx.send(
                 _("Did not cancel your adventure. The journey continues...")

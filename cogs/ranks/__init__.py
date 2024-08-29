@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import discord
 
 from discord.ext import commands
@@ -33,7 +36,7 @@ class Ranks(commands.Cog):
     @commands.command(brief=_("Show the top 10 richest"))
     @locale_doc
     async def richest(self, ctx: Context) -> None:
-        _("""The 10 most richest players in IdleRPG.""")
+        _("""The 10 most richest players in Fable.""")
         await ctx.typing()
         players = await self.bot.pool.fetch(
             'SELECT "user", "name", "money" FROM profile ORDER BY "money" DESC'
@@ -52,6 +55,63 @@ class Ranks(commands.Cog):
             title=_("The Richest Players"), description=result, colour=0xE7CA01
         )
         await ctx.send(embed=result)
+
+    @commands.command(brief=_("Show the top 10 in whored"))
+    @locale_doc
+    async def whoredlb(self, ctx: Context) -> None:
+        _("""The 10 most whored players in Fable.""")
+        await ctx.typing()
+        players = await self.bot.pool.fetch(
+            'SELECT "user", "name", "whored" FROM profile ORDER BY "whored" DESC'
+            " LIMIT 10;"
+        )
+        result = ""
+        for idx, profile in enumerate(players):
+            username = await rpgtools.lookup(self.bot, profile["user"])
+            text = _("{name}, a character by {username} with a score of **{whored}**").format(
+                name=escape_markdown(profile["name"]),
+                username=escape_markdown(username),
+                whored=profile["whored"],
+            )
+            result = f"{result}{idx + 1}. {text}\n"
+        result = discord.Embed(
+            title=_("The Top Whored Players"), description=result, colour=0xE7CA01
+        )
+        await ctx.send(embed=result)
+
+    @commands.command(aliases=["btlb"], brief=_("Show the top players in the Battle Tower"))
+    @locale_doc
+    async def battletowerlb(self, ctx: Context) -> None:
+        try:
+
+            _("""Display the leaderboard of players in the Battle Tower.""")
+            players = await self.bot.pool.fetch(
+                'SELECT bt."id", bt."prestige", bt."level", p."name" '
+                'FROM battletower AS bt '
+                'INNER JOIN profile AS p ON bt."id" = p."user" '
+                'ORDER BY bt."prestige" DESC, bt."level" DESC LIMIT 10'
+            )
+
+            result = ""
+            for idx, player in enumerate(players):
+                # Find username from fetched list
+                username = await self.bot.fetch_user(player["id"])
+                character_name = player["name"]
+
+                text = _("{name}, a character by {username} at Prestige **{prestige}** and Level **{level}**").format(
+                    name=escape_markdown(character_name),
+                    username=escape_markdown(username.name) if username else "Unknown User",
+                    prestige=player["prestige"],
+                    level=player["level"]
+                )
+                result += f"{idx + 1}. {text}\n"
+
+            result = discord.Embed(
+                title=_("Battle Tower Leaderboard"), description=result, colour=0xE7CA01
+            )
+            await ctx.send(embed=result)
+        except Exception as e:
+            await ctx.send(f"An error occurred: {str(e)}")
 
     @commands.command(aliases=["best", "high", "top"], brief=_("Show the top 10 by XP"))
     @locale_doc

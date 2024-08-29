@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import discord
 
 from discord.ext import commands
@@ -35,7 +38,7 @@ class Store(commands.Cog):
             """Show the booster store. For a detailed explanation what the boosters do, check `{prefix}help boosters`."""
         )
         shopembed = discord.Embed(
-            title=_("IdleRPG Store"),
+            title=_("Fable Store"),
             description=_(
                 "Welcome! Use `{prefix}purchase time/luck/money` to buy something."
             ).format(prefix=ctx.clean_prefix),
@@ -84,8 +87,8 @@ class Store(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": price},
+                    subject="buy boosters",
+                    data={"Gold": price},
                     conn=conn,
                 )
         else:
@@ -103,8 +106,8 @@ class Store(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": price},
+                    subject="buy boosters",
+                    data={"Gold": price},
                     conn=conn,
                 )
         await ctx.send(
@@ -154,7 +157,7 @@ class Store(commands.Cog):
             desc = f"**{text}**\n{actives}"
         else:
             desc = ""
-        a, b, c = _("Time Boosters"), _("Luck Boosters"), _("Money Boosters")
+        a, b, c = _("Time Boosters"), _("Luck Boosters"), _("Money Boosters"),
         await ctx.send(
             embed=discord.Embed(
                 title=_("Your Boosters"),

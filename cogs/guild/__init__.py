@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 
 from contextlib import suppress
@@ -48,6 +51,7 @@ from utils.checks import (
     is_guild_officer,
     is_no_guild_leader,
     user_is_patron,
+    is_gm,
 )
 from utils.i18n import _, locale_doc
 from utils.joins import JoinView
@@ -641,33 +645,32 @@ class Guild(commands.Cog):
 
             Only guild leaders can use this command."""
         )
-        if not await ctx.confirm(
-            _("Are you sure to delete your guild? React to confirm the deletion.")
-        ):
-            return
-        async with self.bot.pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    'UPDATE city SET "owner"=1 WHERE "owner"=$1;',
-                    ctx.character_data["guild"],
-                )
-                channel = await conn.fetchval(
-                    'DELETE FROM guild WHERE "leader"=$1 RETURNING "channel";',
-                    ctx.author.id,
-                )
-                await conn.execute(
-                    'UPDATE profile SET "guild"=$1, "guildrank"=$2 WHERE "guild"=$3;',
-                    0,
-                    "Member",
-                    ctx.character_data["guild"],
-                )
-        if channel:
-            with suppress(discord.Forbidden, discord.HTTPException):
-                with handle_message_parameters(
-                    content=f"Guild deleted by **{ctx.author}**"
-                ) as params:
-                    await self.bot.http.send_message(channel, params=params)
-        await ctx.send(_("Successfully deleted your guild."))
+        try:
+            async with self.bot.pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        'UPDATE city SET "owner"=1 WHERE "owner"=$1;',
+                        ctx.character_data["guild"],
+                    )
+                    channel = await conn.fetchval(
+                        'DELETE FROM guild WHERE "leader"=$1 RETURNING "channel";',
+                        ctx.author.id,
+                    )
+                    await conn.execute(
+                        'UPDATE profile SET "guild"=$1, "guildrank"=$2 WHERE "guild"=$3;',
+                        0,
+                        "Member",
+                        ctx.character_data["guild"],
+                    )
+            if channel:
+                with suppress(discord.Forbidden, discord.HTTPException):
+                    with handle_message_parameters(
+                        content=f"Guild deleted by **{ctx.author}**"
+                    ) as params:
+                        await self.bot.http.send_message(channel, params=params)
+            await ctx.send(_("Successfully deleted your guild."))
+        except Exception as e:
+            await ctx.send(e)
 
     @is_guild_leader()
     @guild.command(brief=_("Change your guild's icon"))
@@ -908,7 +911,7 @@ class Guild(commands.Cog):
                 from_=ctx.author,
                 to=0,
                 subject="guild invest",
-                data={"Amount": amount},
+                data={"Gold": amount, "guild": ctx.character_data["guild"]},
                 conn=conn,
             )
         if g["channel"]:
@@ -961,7 +964,7 @@ class Guild(commands.Cog):
                 from_=0,
                 to=member,
                 subject="guild pay",
-                data={"Amount": amount},
+                data={"Gold": amount},
                 conn=conn,
             )
         if guild["channel"]:
@@ -1376,6 +1379,12 @@ class Guild(commands.Cog):
                 await self.bot.public_log(
                     f"**{guild1['name']}** and **{guild2['name']}** tied."
                 )
+
+    @is_gm()
+    @guild.command()
+    async def adventurereset(self, ctx):
+        if not await self.bot.get_guild_adventure(ctx.character_data["guild"]):
+            await self.bot.reset_guild_cooldown(ctx)
 
     @is_guild_officer()
     @guild_cooldown(3600)

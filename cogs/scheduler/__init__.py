@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,16 +16,19 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from __future__ import annotations
 
 import asyncio
+import re
 
 from datetime import datetime, timedelta
 
 import asyncpg
 import discord
 
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.http import handle_message_parameters
 
 from classes.bot import Bot
@@ -33,6 +37,7 @@ from classes.converters import DateTimeScheduler, IntGreaterThan
 from cogs.help import chunks
 from utils.checks import has_char
 from utils.i18n import _, current_locale, locale_doc
+
 
 
 class Timer:
@@ -46,6 +51,7 @@ class Timer:
         self.type: str = record["type"]
         self.start: datetime = record["start"]
         self.end: datetime = record["end"]
+
 
     def to_dict(self) -> dict[str, int | str | datetime]:
         return {
@@ -92,6 +98,7 @@ class Scheduling(commands.Cog):
 
         self._have_data = asyncio.Event()
         self._current_timer = None
+        self.reminder_check.start()
 
         if self._handles:
             self._task = asyncio.create_task(self.dispatch_timers())
@@ -162,6 +169,89 @@ class Scheduling(commands.Cog):
             "remove_timer", 0, args={"timer_id": timer_id}
         )
 
+    async def fetch_reminders(self):
+        try:
+            async with self.bot.pool.acquire() as connection:
+                async with connection.transaction():
+                    reminders = await connection.fetch(
+                        "SELECT * FROM reminders"
+                    )
+            return reminders
+        except Exception as e:
+            # If an exception occurs, send a direct message to a specific user
+            user_id = 295173706496475136  # ID of the user to send the message to
+            user = self.bot.get_user(user_id)
+            if user:
+                await user.send(f"An exception occurred while fetching reminders: {e}")
+            else:
+                print(f"Failed to send DM: User {user_id} not found")
+            return []
+
+    @tasks.loop(seconds=1)  # Adjust the interval as needed
+    async def reminder_check(self):
+        try:
+            reminders = await self.fetch_reminders()
+            current_time = datetime.now()
+
+            for reminder in reminders:
+                end_time = reminder["end"]
+                if current_time >= end_time:
+                    await self._send_reminder(reminder)
+        except Exception as e:
+            # If an exception occurs, send a direct message to a specific user
+            user_id = 295173706496475136  # ID of the user to send the message to
+            user = self.bot.get_user(user_id)
+            if user:
+                await user.send(f"An exception occurred in the reminder check loop: {e}")
+            else:
+                print(f"Failed to send DM: User {user_id} not found")
+
+    @reminder_check.before_loop
+    async def before_reminder_check(self):
+        await self.bot.wait_until_ready()  # Wait until the bot is fully ready
+
+    async def _send_reminder(self, reminder: dict) -> None:
+        user_id = reminder["user"]
+        content = reminder["content"]
+        channel_id = reminder["channel"]
+        reminder_id = reminder["id"]
+        reminder_start = reminder["start"]
+        type = reminder["type"] # Assuming reminder["start"] is already a datetime object
+
+        try:
+            user = await self.bot.fetch_user(user_id)
+            channel = await self.bot.fetch_channel(channel_id)
+
+            # Calculate timedelta
+            timedelta = datetime.now() - reminder_start
+
+            # Format timedelta
+            hours, remainder = divmod(timedelta.total_seconds(), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            formatted_timedelta = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+            if type != "adventure":
+            # Send the reminder message
+                await channel.send(f"{user.mention} you wanted to be reminded about {content} {formatted_timedelta} ago.")
+            else:
+                await channel.send(
+                    f"{user.mention} adventure level: **{content}** is finished!")
+
+            # Delete the reminder from the database
+            async with self.bot.pool.acquire() as connection:
+                async with connection.transaction():
+                    await connection.execute(
+                        "DELETE FROM reminders WHERE id = $1",
+                        reminder_id
+                    )
+        except Exception as e:
+                    # Send a message to a specific user if any other error occurs
+            user_id = 295173706496475136  # ID of the user to send the message to
+            user = self.bot.get_user(user_id)
+            if user:
+                await user.send(f"An error occurred while sending the reminder: {e}")
+            else:
+                print(f"Failed to send DM: User {user_id} not found.")
+
     def restart(self):
         if self._task:
             self._task.cancel()
@@ -171,77 +261,57 @@ class Scheduling(commands.Cog):
         await asyncio.sleep(seconds)
         await self._remind(timer)
 
-    async def _remind(self, timer: Timer):
-        locale = await self.bot.get_cog("Locale").locale(timer.user)
-        current_locale.set(locale)
-        await self.bot.pool.execute('DELETE FROM reminders WHERE "id"=$1;', timer.id)
 
-        if timer.type == "reminder":
-            with handle_message_parameters(
-                content=_(
-                    "{user}, you wanted to be reminded about {subject} {diff} ago."
-                ).format(
-                    user=f"<@{timer.user}>",
-                    subject=timer.content,
-                    diff=timer.human_delta,
-                )
-            ) as params:
-                await self.bot.http.send_message(
-                    timer.channel,
-                    params=params,
-                )
-        else:
-            with handle_message_parameters(
-                content=_("{user}, your adventure {num} has finished.").format(
-                    user=f"<@{timer.user}>", num=timer.content
-                )
-            ) as params:
-                await self.bot.http.send_message(
-                    timer.channel,
-                    params=params,
-                )
 
     async def create_reminder(
-        self,
-        content: str,
-        ctx: Context,
-        end: datetime,
-        type: str = "reminder",
-        conn=None,
+            self,
+            content: str,
+            ctx: Context,
+            end: datetime,
+            type: str = "reminder",
+            conn=None,
     ):
-        conn = conn or self.bot.pool
+        try:
+            conn = conn or self.bot.pool
 
-        now = datetime.utcnow()
+            now = datetime.utcnow()
 
-        timer = Timer.temporary(
-            user=ctx.author.id,
-            content=content,
-            channel=ctx.channel.id,
-            type=type,
-            start=now,
-            end=end,
-        )
-        delta = (end - now).total_seconds()
+            timer = Timer.temporary(
+                user=ctx.author.id,
+                content=content,
+                channel=ctx.channel.id,
+                type=type,
+                start=now,
+                end=end,
+            )
+            delta = (end - now).total_seconds()
 
-        if delta <= 60:
-            # a shortcut for small timers
-            asyncio.create_task(self.short_timer_optimisation(delta, timer))
-            return timer
+            if delta <= 7884000:
+                # a shortcut for small timers
+                #asyncio.create_task(self.short_timer_optimisation(delta, timer))
 
-        id = await conn.fetchval(
-            'INSERT INTO reminders ("user", "content", "channel", "start", "end", "type") VALUES'
-            ' ($1, $2, $3, $4, $5, $6) RETURNING "id";',
-            ctx.author.id,
-            content,
-            ctx.channel.id,
-            now,
-            end,
-            type,
-        )
-        timer.id = id
+                id = await conn.fetchval(
+                    'INSERT INTO reminders ("user", "content", "channel", "start", "end", "type") VALUES'
+                    ' ($1, $2, $3, $4, $5, $6) RETURNING "id";',
+                    ctx.author.id,
+                    content,
+                    ctx.channel.id,
+                    now,
+                    end,
+                    type,
+                )
+                timer.id = id
 
-        await self.add_timer(timer)
+                return timer
 
+
+        except Exception as e:
+            # Handle the exception here
+            await ctx.send(f"An error occurred: {e}")
+            # You can add more error handling or logging as needed
+        else:
+            timer.id = id
+            await self.add_timer(timer)
         return timer
 
     @commands.group(
@@ -250,34 +320,67 @@ class Scheduling(commands.Cog):
         brief=_("Reminds you about something"),
     )
     @locale_doc
-    async def remind(self, ctx, *, when_and_what: DateTimeScheduler):
+    async def remind(self, ctx, *, when_and_what: str):
         _(
             """<when_and_what> - The reminder subject and time, see below for more info.
 
             Remind yourself about something you should do in the future.
 
-            `<when_and_what>` can be you reminder and time, several formats are accepted:
+            `<when_and_what>` can be your reminder and time, several formats are accepted:
               - {prefix}remind 12h vote on top.gg
               - {prefix}remind 12am use {prefix}daily
               - {prefix}remind next monday check out the new God luck
 
-            Please keep it in order of {prefix}remind time subject to make sure this works properly"""
+            Please keep it in the order of {prefix}remind time subject to make sure this works properly"""
         )
-        time, subject = when_and_what
+        time_subject_split = when_and_what.split(maxsplit=1)
+        if len(time_subject_split) != 2:
+            return await ctx.send(_("Invalid reminder format."))
+
+        time_str, subject = time_subject_split
+        time = await self.convert_time(ctx, time_str)
+
         if len(subject) > 100:
             return await ctx.send(_("Please choose a shorter reminder text."))
+
         diff = str(time - datetime.utcnow()).split(".")[0]
+        await ctx.send(
+            _("{user}, reminder set for {subject} in {time}.").format(
+                user=ctx.author.mention, subject=subject, time=diff
+            )
+        )
         await self.create_reminder(
             subject,
             ctx,
             time,
             "reminder",
         )
-        await ctx.send(
-            _("{user}, reminder set for {subject} in {time}.").format(
-                user=ctx.author.mention, subject=subject, time=diff
-            )
-        )
+
+    async def convert_time(self, ctx, time_str):
+        time_pattern = r"(\d+(?:\.\d+)?)([smhdwMy])"
+        match = re.findall(time_pattern, time_str)
+        if not match:
+            raise commands.BadArgument("Invalid time format.")
+
+        time_delta = timedelta()
+        for value, unit in match:
+            value = float(value)
+            if unit == "s":
+                time_delta += timedelta(seconds=value)
+            elif unit == "m":
+                time_delta += timedelta(minutes=value)
+            elif unit == "h":
+                time_delta += timedelta(hours=value)
+            elif unit == "d":
+                time_delta += timedelta(days=value)
+            elif unit == "w":
+                time_delta += timedelta(weeks=value)
+            elif unit == "M":
+                time_delta += timedelta(days=value * 30)  # Assuming 30 days in a month
+            elif unit == "y":
+                time_delta += timedelta(days=value * 365)  # Assuming 365 days in a year
+
+        return datetime.utcnow() + time_delta
 
     @remind.command(brief=_("Shows a list of your running reminders."))
     @locale_doc
@@ -376,6 +479,9 @@ class Scheduling(commands.Cog):
             await ctx.send(_("Successfully opted in to automatic adventure reminders."))
         else:
             await ctx.send(_("Opted out of automatic adventure reminders."))
+
+    def cog_unload(self):
+        self.reminder_check.cancel()
 
 
 async def setup(bot):

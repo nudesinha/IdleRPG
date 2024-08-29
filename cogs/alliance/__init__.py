@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,24 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import asyncio
 
 from datetime import timedelta
@@ -106,7 +125,7 @@ class Alliance(commands.Cog):
                 'SELECT * FROM guild WHERE "alliance"=$1;', alliance_id
             )
         if (
-            len(allied_guilds) <= 1
+                len(allied_guilds) <= 1
         ):  # your guild is the only one OR error and query returns zero guilds
             return await ctx.send(
                 _(
@@ -160,7 +179,7 @@ class Alliance(commands.Cog):
             await self.bot.reset_alliance_cooldown(ctx)
             return await ctx.send(_("That member is not the leader of their guild."))
         elif (
-            newguild["alliance"] == ctx.character_data["guild"]
+                newguild["alliance"] == ctx.character_data["guild"]
         ):  # already part of your alliance
             await self.bot.reset_alliance_cooldown(ctx)
             return await ctx.send(
@@ -182,24 +201,24 @@ class Alliance(commands.Cog):
                     )
 
             if not await ctx.confirm(
-                _(
-                    "{newleader}, {author} invites you to join their alliance. React to"
-                    " join now."
-                ).format(newleader=newleader.mention, author=ctx.author.mention),
-                user=newleader,
+                    _(
+                        "{newleader}, {author} invites you to join their alliance. React to"
+                        " join now."
+                    ).format(newleader=newleader.mention, author=ctx.author.mention),
+                    user=newleader,
             ):
                 return
 
             if (
-                await conn.fetchval(
-                    'SELECT COUNT(*) FROM guild WHERE "alliance"=$1;',
-                    ctx.character_data["guild"],
-                )
+                    await conn.fetchval(
+                        'SELECT COUNT(*) FROM guild WHERE "alliance"=$1;',
+                        ctx.character_data["guild"],
+                    )
             ) == 3:
                 await self.bot.reset_alliance_cooldown(ctx)
                 return await ctx.send(_("Your alliance is full."))
             if await conn.fetchrow(
-                'SELECT * FROM city WHERE "owner"=$1;', ctx.user_data["guild"]
+                    'SELECT * FROM city WHERE "owner"=$1;', ctx.user_data["guild"]
             ):
                 await self.bot.reset_alliance_cooldown(ctx)
                 return await ctx.send(
@@ -278,9 +297,9 @@ class Alliance(commands.Cog):
             return await ctx.send(_("This guild is not in your alliance."))
 
         if not await ctx.confirm(
-            _("Do you really want to kick **{guild}** from your alliance?").format(
-                guild=guild["name"]
-            )
+                _("Do you really want to kick **{guild}** from your alliance?").format(
+                    guild=guild["name"]
+                )
         ):
             return
 
@@ -311,6 +330,71 @@ class Alliance(commands.Cog):
         )
         subcommands = "```" + "\n".join(self.list_subcommands(ctx)) + "```"
         await ctx.send(_("Please use one of these subcommands:\n\n") + subcommands)
+
+    @alliance_cooldown(120)
+    @alliance.group(brief=_("Destroy defenses"))
+    @owns_city()
+    @is_alliance_leader()
+    @locale_doc
+    async def destroy(self, ctx, defense):
+        _(
+            """Build buildings `{prefix}alliance build building` or defenses `{prefix}alliance build defense`."""
+        )
+        try:
+            guild_id = ctx.character_data["guild"]
+
+            # Query the database to find the city with the matching guild ID
+            async with self.bot.pool.acquire() as connection:
+                async with connection.transaction():
+                    city_query = await connection.fetchrow(
+                        "SELECT name FROM city WHERE owner = $1", guild_id
+                    )
+                    if city_query:
+                        city_name = city_query["name"]
+                        # Check if the defense exists in the city
+                        result_found = await connection.fetchrow(
+                            "SELECT * FROM defenses WHERE city = $1",
+                            city_name,
+                        )
+                        if result_found:
+                            confirmed = await ctx.confirm(
+                                f"Are you sure you want to destroy {defense} in {city_name}?"
+                            )
+                            if confirmed:
+                                # Fetch the id of the first defense that matches the city and name
+                                defense_id_row = await connection.fetchrow(
+                                    "SELECT id FROM defenses WHERE city = $1 AND name = $2 LIMIT 1",
+                                    city_name,
+                                    defense.lower(),
+                                )
+
+                                if defense_id_row:
+                                    defense_id = defense_id_row['id']
+
+                                    # Now use the id to delete the specific row
+                                    result = await connection.execute(
+                                        "DELETE FROM defenses WHERE id = $1 RETURNING *",
+                                        defense_id,
+                                    )
+                                    if result:
+                                        await ctx.send(f"Destroyed {defense} in {city_name}.")
+                                    else:
+                                        await ctx.send(f"{defense} not found in {city_name}.")
+                                        await self.bot.reset_cooldown(ctx)
+                                else:
+                                    await ctx.send(f"{defense} not found in {city_name}.")
+                                    await self.bot.reset_cooldown(ctx)
+                            else:
+                                await ctx.send("Deletion cancelled.")
+                                await self.bot.reset_cooldown(ctx)
+                        else:
+                            await ctx.send("Defense not found")
+                            await self.bot.reset_cooldown(ctx)
+                    else:
+                        await ctx.send("City not found.")
+                        await self.bot.reset_cooldown(ctx)
+        except Exception as e:
+            await ctx.send(str(e))
 
     @alliance_cooldown(300)
     @owns_city()
@@ -353,10 +437,10 @@ class Alliance(commands.Cog):
             return await ctx.send(_("This building is fully upgraded."))
         up_price = self.get_upgrade_price(cur_level)
         if not await ctx.confirm(
-            _(
-                "Are you sure you want to upgrade the **{name} building** to level"
-                " {new_level}? This will cost $**{price}**."
-            ).format(name=name, new_level=cur_level + 1, price=up_price)
+                _(
+                    "Are you sure you want to upgrade the **{name} building** to level"
+                    " {new_level}? This will cost $**{price}**."
+                ).format(name=name, new_level=cur_level + 1, price=up_price)
         ):
             return
         if not await guild_has_money(self.bot, ctx.character_data["guild"], up_price):
@@ -384,7 +468,7 @@ class Alliance(commands.Cog):
                 from_=ctx.author.id,
                 to=2,
                 subject="alliance",
-                data={"Amount": up_price, "Building": name},
+                data={"Gold": up_price, "Building": name},
                 conn=conn,
             )
 
@@ -444,7 +528,7 @@ class Alliance(commands.Cog):
                 'SELECT name FROM city WHERE "owner"=$1;', ctx.character_data["guild"]
             )
             if (
-                await self.bot.redis.execute_command("GET", f"city:{city_name}")
+                    await self.bot.redis.execute_command("GET", f"city:{city_name}")
             ) == b"under attack":
                 await self.bot.reset_alliance_cooldown(ctx)
                 return await ctx.send(
@@ -457,14 +541,14 @@ class Alliance(commands.Cog):
                 await self.bot.reset_alliance_cooldown(ctx)
                 return await ctx.send(_("You may only build up to 10 defenses."))
             if not await ctx.confirm(
-                _(
-                    "Are you sure you want to build a **{defense}**? This will cost"
-                    " **${price}**."
-                ).format(defense=name, price=building["cost"])
+                    _(
+                        "Are you sure you want to build a **{defense}**? This will cost"
+                        " **${price}**."
+                    ).format(defense=name, price=building["cost"])
             ):
                 return
             if not await guild_has_money(
-                self.bot, ctx.character_data["guild"], building["cost"]
+                    self.bot, ctx.character_data["guild"], building["cost"]
             ):
                 await self.bot.reset_alliance_cooldown(ctx)
                 return await ctx.send(
@@ -491,7 +575,7 @@ class Alliance(commands.Cog):
                 from_=ctx.author.id,
                 to=2,
                 subject="alliance",
-                data={"Amount": building["cost"], "Defense": name},
+                data={"Gold": building["cost"], "Defense": name},
                 conn=conn,
             )
 
@@ -550,8 +634,8 @@ class Alliance(commands.Cog):
                 'SELECT name FROM city WHERE "owner"=$1;', alliance
             )
             defenses = (
-                await conn.fetch('SELECT * FROM defenses WHERE "city"=$1;', city_name)
-            ) or []
+                           await conn.fetch('SELECT * FROM defenses WHERE "city"=$1;', city_name)
+                       ) or []
         if not city_name:
             return await ctx.send(_("Your alliance does not own a city."))
         embed = discord.Embed(
@@ -589,7 +673,7 @@ class Alliance(commands.Cog):
             Only the alliance leader can use this command."""
         )
         if not await ctx.confirm(
-            _("Are you sure you want to give up control of your city?")
+                _("Are you sure you want to give up control of your city?")
         ):
             return
         name = await self.bot.pool.fetchval(
@@ -720,10 +804,10 @@ class Alliance(commands.Cog):
             # Since the absolute maximum guild bank size is 12.5M, attacking a city
             # with all buildings on maximum should cost 12.5M
             building_strength = (
-                city_data["thief_building"]
-                + city_data["raid_building"]
-                + city_data["trade_building"]
-                + city_data["adventure_building"]
+                    city_data["thief_building"]
+                    + city_data["raid_building"]
+                    + city_data["trade_building"]
+                    + city_data["adventure_building"]
             )
             # 40 is the maximum of all buildings set to 10 in Vopnafjor,
             # so we calculate the percentage of the maximum
@@ -763,9 +847,9 @@ class Alliance(commands.Cog):
             )
         else:
             if not await ctx.confirm(
-                _(
-                    "**{city}** has excellent infrastructure and attacking it would cost **${attacking_cost}**, do you want to proceed?"
-                ).format(city=city, attacking_cost=attacking_cost)
+                    _(
+                        "**{city}** has excellent infrastructure and attacking it would cost **${attacking_cost}**, do you want to proceed?"
+                    ).format(city=city, attacking_cost=attacking_cost)
             ):
                 await self.bot.reset_alliance_cooldown(ctx)
                 return

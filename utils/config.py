@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from typing import Any
 
 import tomli
@@ -55,6 +58,7 @@ class ExternalSection:
     __slots__ = {
         "patreon_token",
         "imgur_token",
+        "openai",
         "okapi_token",
         "traviapi",
         "base_url",
@@ -66,6 +70,7 @@ class ExternalSection:
     def __init__(self, data: dict[str, Any]) -> None:
         self.patreon_token = data.get("patreon_token", None)
         self.imgur_token = data.get("imgur_token", None)
+        self.openai = data.get("openai", None)
         self.okapi_token = data.get("okapi_token", None)
         self.traviapi = data.get("traviapi", None)
         self.base_url = data.get("base_url", "https://idlerpg.xyz")
@@ -89,10 +94,10 @@ class DatabaseSection:
 
     def __init__(self, data: dict[str, Any]) -> None:
         self.postgres_name = data.get("postgres_name", "idlerpg")
-        self.postgres_user = data.get("postgres_user", "jens")
+        self.postgres_user = data.get("postgres_user", "")
         self.postgres_port = data.get("postgres_port", 5432)
         self.postgres_host = data.get("postgres_host", "127.0.0.1")
-        self.postgres_password = data.get("postgres_password", "owo")
+        self.postgres_password = data.get("postgres_password", "")
         self.redis_host = data.get("redis_host", "127.0.0.1")
         self.redis_port = data.get("redis_port", 6379)
         self.redis_database = data.get("redis_database", 0)

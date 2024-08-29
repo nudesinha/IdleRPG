@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from __future__ import annotations
 
 from enum import Enum
@@ -44,13 +47,23 @@ class GameClass(Enum):
 
 
 class Warrior(GameClass):
-    Infanterist = 0
-    Footman = 1
-    Shieldbearer = 2
-    Knight = 3
-    Warmaster = 4
-    Templar = 5
-    Paladin = 6
+    Grunt = 0
+    Mercenary = 1
+    Berserker = 2
+    Vanguard = 3
+    Warlord = 4
+    Champion = 5
+    BattleMaster = 6
+
+
+class SantasHelper(GameClass):
+    LittleHelper = 0
+    GiftGatherer = 1
+    HolidayAide = 2
+    JoyfulJester = 3
+    YuletideGuardian = 4
+    FestiveEnforcer = 5
+    FestiveChampion = 6
 
 
 class Thief(GameClass):
@@ -61,6 +74,7 @@ class Thief(GameClass):
     Chunin = 4
     Renegade = 5
     Assassin = 6
+
 
 
 class Mage(GameClass):
@@ -81,6 +95,16 @@ class Paragon(GameClass):
     Champion = 4
     Vindicator = 5
     Paragon = 6
+
+
+class Paladin(GameClass):
+    Squire = 0
+    FootKnight = 1
+    Crusader = 2
+    Templar = 3
+    Justicar = 4
+    DivineChampion = 5
+    Archpaladin = 6
 
 
 class Ranger(GameClass):
@@ -113,6 +137,16 @@ class Ritualist(GameClass):
     Ritualist = 6
 
 
+class Reaper(GameClass):
+    Deathshroud = 0
+    SoulWarden = 1
+    Reaper = 2
+    PhantomScythe = 3
+    SoulSnatcher = 4
+    Deathbringer = 5
+    GrimReaper = 6
+
+
 def get_class_evolves(class_: type[GameClass]) -> list[GameClass]:
     return list(class_.__members__.values())
 
@@ -120,12 +154,15 @@ def get_class_evolves(class_: type[GameClass]) -> list[GameClass]:
 ALL_CLASSES = {
     class_.class_name(): class_
     for class_ in list(Warrior.__members__.values())
-    + list(Thief.__members__.values())
-    + list(Mage.__members__.values())
-    + list(Paragon.__members__.values())
-    + list(Raider.__members__.values())
-    + list(Ranger.__members__.values())
-    + list(Ritualist.__members__.values())
+                  + list(Thief.__members__.values())
+                  + list(Mage.__members__.values())
+                  + list(Paragon.__members__.values())
+                  + list(Raider.__members__.values())
+                  + list(Ranger.__members__.values())
+                  + list(Ritualist.__members__.values())
+                  + list(Paladin.__members__.values())
+                  + list(Reaper.__members__.values())
+                  + list(SantasHelper.__members__.values())
 }
 
 ALL_CLASSES_TYPES = {
@@ -136,6 +173,9 @@ ALL_CLASSES_TYPES = {
     "Ranger": Ranger,
     "Ritualist": Ritualist,
     "Warrior": Warrior,
+    "Paladin": Paladin,
+    "Reaper": Reaper,
+    "SantasHelper": SantasHelper,
 }
 
 

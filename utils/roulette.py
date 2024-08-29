@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 
 from utils import random
@@ -23,8 +26,8 @@ from utils.i18n import _
 ALL_NUMBERS = list(range(37))
 
 STATIC_BIDS = {
-    "rouge": [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36],
-    "noir": [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35],
+    "red": [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36],
+    "black": [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35],
     "pair": [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36],
     "impair": [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35],
     "manque": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
@@ -48,9 +51,9 @@ def get_row(number):
 
 
 def get_colour(number):
-    if number in STATIC_BIDS["rouge"]:
+    if number in STATIC_BIDS["red"]:
         return "red"
-    elif number in STATIC_BIDS["noir"]:
+    elif number in STATIC_BIDS["black"]:
         return "black"
     else:  # 0
         return "green"
@@ -76,8 +79,8 @@ class RouletteGame:
     def parse_bet(self, text):
         """Parses a bet in French roulette.
         Possible simple bets:
-            - noir
-            - rouge
+            - black
+            - red
             - pair
             - impair
             - manque
@@ -101,7 +104,7 @@ class RouletteGame:
         else:
             bid_type = chunks[0]
 
-        if bid_type in ("noir", "rouge", "pair", "impair", "manque", "passe"):
+        if bid_type in ("black", "red", "pair", "impair", "manque", "passe"):
             # Simple bets 1:1
             return bid_type, 1, STATIC_BIDS[bid_type]
         elif bid_type in ("premier", "milieu", "dernier"):
@@ -158,7 +161,7 @@ class RouletteGame:
         # The result of the roll
         self.result = random.choice(ALL_NUMBERS)
         self.message = await ctx.send(
-            _("<a:roulette:691749187284369419> Spinning the wheel...")
+            _("<a:f_roulette:1148251102790307882> Spinning the wheel...")
         )
         await asyncio.sleep(3)
         if self.result in self.numbers:
@@ -184,8 +187,8 @@ class RouletteGame:
                 self.ctx,
                 from_=1,
                 to=self.ctx.author.id,
-                subject="gambling",
-                data={"Amount": self.money * self.payout},
+                subject="gambling roulette",
+                data={"Gold": self.money * self.payout},
                 conn=conn,
             )
         await self.message.edit(
@@ -210,6 +213,6 @@ class RouletteGame:
             self.ctx,
             from_=self.ctx.author.id,
             to=2,
-            subject="gambling",
-            data={"Amount": self.money},
+            subject="gambling roulette",
+            data={"Gold": self.money},
         )

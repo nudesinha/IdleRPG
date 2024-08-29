@@ -1,3 +1,22 @@
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -11,6 +30,7 @@ from classes.classes import (
     Ritualist,
     Thief,
     Warrior,
+    Paladin,
 )
 from classes.items import ItemType
 from utils.random import randint
@@ -26,6 +46,7 @@ class Race(Enum):
     Human = 2
     Elf = 3
     Orc = 4
+    Shadowborn = 5
 
 
 class Faction(Enum):
@@ -66,6 +87,7 @@ class Entity:
         is_warrior = any(c.in_class_line(Warrior) for c in self.classes)
         is_thief = any(c.in_class_line(Thief) for c in self.classes)
         is_raider = any(c.in_class_line(Raider) for c in self.classes)
+        is_paladin = any(c.in_class_line(Paladin) for c in self.classes)
         is_caster = any(
             c.in_class_line(Mage) or c.in_class_line(Ritualist) for c in self.classes
         )
@@ -87,6 +109,8 @@ class Entity:
                 damage += 5
             elif item.item_type == ItemType.Axe and is_raider:
                 damage += 5
+            elif item.item_type == ItemType.Hammer and is_paladin:
+                damage += 5
 
         lines = [class_.get_class_line() for class_ in self.classes]
         grades = [class_.class_grade() for class_ in self.classes]
@@ -102,6 +126,8 @@ class Entity:
             damage += 3
         elif self.race == Race.Jikill:
             damage += 4
+        elif self.race == Race.Shadowborn:
+            damage += -1
 
         if self.effects.weakened:
             damage *= 0.7
@@ -124,6 +150,8 @@ class Entity:
             armor += 1
         elif self.race == Race.Orc:
             armor += 4
+        elif self.race == Race.Shadowborn:
+            armor += 5
         return armor
 
     def apply_damage_reducible(self, damage: float) -> None:

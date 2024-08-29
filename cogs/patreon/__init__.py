@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,9 +16,18 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-import asyncio
 
+
+import asyncio
+import datetime
+import firebase_admin
+from firebase_admin import credentials, storage
+import urllib.request
+import urllib.parse, urllib.error
+
+import aiohttp
 import discord
+import requests
 
 from aiohttp.client_exceptions import ContentTypeError
 from asyncpg.exceptions import StringDataRightTruncationError
@@ -25,7 +35,7 @@ from discord.ext import commands
 
 from classes.bot import Bot
 from classes.items import ItemType
-from cogs.shard_communication import next_day_cooldown
+from cogs.shard_communication import next_day_cooldown, user_on_cooldown as user_cooldown
 from utils import random
 from utils.checks import (
     ImgurUploadError,
@@ -33,8 +43,21 @@ from utils.checks import (
     is_guild_leader,
     is_patron,
     user_is_patron,
+    is_gm,
 )
 from utils.i18n import _, locale_doc
+
+
+async def is_valid_image(url):
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.head(url, allow_redirects=True) as response:
+                content_type = response.headers.get('content-type')
+                if content_type is not None and content_type.startswith('image'):
+                    return True
+        except aiohttp.ClientError:
+            pass
+    return False
 
 
 class Patreon(commands.Cog):
@@ -60,8 +83,8 @@ class Patreon(commands.Cog):
         }
 
         async with self.bot.session.get(
-            "https://www.patreon.com/api/oauth2/api/current_user/campaigns",
-            headers=headers,
+                "https://www.patreon.com/api/oauth2/api/current_user/campaigns",
+                headers=headers,
         ) as resp:
             json = await resp.json()
             campaign_id = json["data"][0]["id"]
@@ -74,9 +97,9 @@ class Patreon(commands.Cog):
 
             while True:
                 async with self.bot.session.get(
-                    f"https://www.patreon.com/api/oauth2/v2/campaigns/{campaign_id}/members",
-                    headers=headers,
-                    params=params,
+                        f"https://www.patreon.com/api/oauth2/v2/campaigns/{campaign_id}/members",
+                        headers=headers,
+                        params=params,
                 ) as resp:
                     json = await resp.json()
 
@@ -122,6 +145,63 @@ class Patreon(commands.Cog):
             await asyncio.sleep(60 * 60)
 
     @has_char()
+    @commands.command()
+    async def patreonredeem(self, ctx, key):
+        try:
+            # Check if the provided key is valid
+            result = await self.bot.pool.fetchrow(
+                'SELECT * FROM patreon_keys WHERE "key" = $1 AND is_redeemed = false;', key)
+
+            if result:
+                # Check if the author matches the Discord ID associated with the key
+                if ctx.author.id == result['discordid']:
+                    tier = result['tier']
+                    # Update the database to mark the key as redeemed and add a timestamp
+                    current_time = datetime.datetime.utcnow().date()
+                    formatted_date = current_time.strftime('%Y-%m-%d')
+                    await self.bot.pool.execute(
+                        'UPDATE patreon_keys SET is_redeemed = true, timestamp = $1 WHERE "key" = $2;',
+                        formatted_date, key
+                    )
+                    tier = result['tier']
+                    inttier = int(tier)
+                    if inttier < 4 or inttier > 0:
+                        await self.bot.pool.execute(
+                            'UPDATE profile SET tier = $1, weapontoken = weapontoken + $2 WHERE "user" = $3;',
+                            int(tier), 5, ctx.author.id
+                        )
+
+                    # Format the timestamp to display only the date
+                    formatted_date = current_time.strftime('%Y-%m-%d')
+
+                    await ctx.send(f"Key successfully redeemed! Thankyou for your support!")
+                else:
+                    await ctx.send("You are not authorized to redeem this key.")
+            else:
+                await ctx.send("Invalid or already redeemed key.")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+
+    @has_char()
+    @user_cooldown(600)
+    @commands.command()
+    async def message(self, ctx, email):
+        user_id = 295173706496475136  # Replace with the specific user ID
+
+        try:
+            # Fetch the user from Discord's servers
+            user = await self.bot.fetch_user(user_id)
+
+            # Send a direct message to the user
+            await user.send(
+                f'{ctx.author.id} {ctx.author}: {email}')
+
+            await ctx.send('Message sent. Requests are manually processed. You should receive a code for your '
+                           'benefits in your dms when it is processed. Normally between 30 minutes to a few hours.')
+        except Exception as e:
+            await ctx.send(e)
+
+    @has_char()
     @commands.command(brief=_("Reset a modified item"))
     @locale_doc
     async def resetitem(self, ctx, itemid: int):
@@ -153,7 +233,7 @@ class Patreon(commands.Cog):
                 hand = "left"
             elif new_type in ("Spear", "Wand"):
                 hand = "right"
-            elif new_type in ("Bow", "Howlet", "Scythe"):
+            elif new_type in ("Bow", "Mace", "Scythe"):
                 hand = "both"
             else:
                 hand = "any"
@@ -216,6 +296,17 @@ class Patreon(commands.Cog):
             )
         )
 
+    @has_char()
+    @commands.command()
+    async def tokens(self, ctx):
+        weapontoken_value = 0
+
+        weapontoken_value = await self.bot.pool.fetchval(
+            'SELECT weapontoken FROM profile WHERE "user"=$1;',
+            ctx.author.id
+        )
+        await ctx.send(f"You have {weapontoken_value} tokens left")
+
     @is_patron("bronze")
     @has_char()
     @commands.command(brief=_("[bronze] Change an item's type"))
@@ -232,6 +323,9 @@ class Patreon(commands.Cog):
 
             Only bronze (or above) tier patrons can use this command."""
         )
+
+        # First, fetch the current value of weapontoken for the user
+
         item_type = ItemType.from_string(new_type)
         if item_type is None:
             return await ctx.send(_("Invalid type."))
@@ -256,7 +350,7 @@ class Patreon(commands.Cog):
                 )
 
             if (item["hand"] == "both" and hand != "both") or (
-                item["hand"] != "both" and hand == "both"
+                    item["hand"] != "both" and hand == "both"
             ):
                 return await ctx.send(
                     _(
@@ -264,8 +358,52 @@ class Patreon(commands.Cog):
                         " and vice-versa due to weapon damage reasons."
                     )
                 )
-
             stat = item["damage"] or item["armor"]
+            result = await self.bot.pool.fetchval('SELECT tier FROM profile WHERE "user" = $1;', ctx.author.id)
+
+            if result != 4:
+
+                if item["hand"] == "both" and stat > 40:
+                    weapontoken_value = await self.bot.pool.fetchval(
+                        'SELECT weapontoken FROM profile WHERE "user"=$1;',
+                        ctx.author.id
+                    )
+
+                    # If the value is 0 or below, you can return
+                    if weapontoken_value <= 0:
+                        await ctx.send("You don't have enough Weapon tokens!")
+                        return
+
+                    weapontoken_value = weapontoken_value - 1
+                    await ctx.send(f"You have {weapontoken_value} token(s) left!")
+
+                    await self.bot.pool.execute(
+                        'UPDATE profile SET weapontoken = weapontoken - 1 WHERE "user"=$1;',
+                        ctx.author.id
+                    )
+
+                # Check if the item is not both
+                if item["hand"] != "both":
+                    if stat > 40:
+                        weapontoken_value = await self.bot.pool.fetchval(
+                            'SELECT weapontoken FROM profile WHERE "user"=$1;',
+                            ctx.author.id
+                        )
+
+                        # If the value is 0 or below, you can return
+                        if weapontoken_value <= 0:
+                            await ctx.send("You don't have enough Weapon tokens!")
+                            return
+
+                        weapontoken_value = weapontoken_value - 1
+                        await ctx.send(f"You have {weapontoken_value} token(s) left!")
+
+                        await self.bot.pool.execute(
+                            'UPDATE profile SET weapontoken = weapontoken - 1 WHERE "user"=$1;',
+                            ctx.author.id
+                        )
+
+                # Otherwise, decrement weapontoken by 1
 
             await conn.execute(
                 'UPDATE allitems SET "type"=$1, "original_type"=CASE WHEN'
@@ -305,6 +443,75 @@ class Patreon(commands.Cog):
         )
         await ctx.send(_("You received a daily {type_} booster!").format(type_=type_))
 
+    @commands.command()
+    @is_gm()
+    async def randomusers(self, ctx):
+        async with self.bot.pool.acquire() as connection:
+            query = 'SELECT "user" FROM profile WHERE "user" != $1 ORDER BY RANDOM() LIMIT 2'
+            random_users = await connection.fetch(query, ctx.author.id)
+
+            # Extracting the user IDs
+            random_user_objects = []
+
+            for user in random_users:
+                user_id = user['user']
+                # Fetch user object from ID
+                fetched_user = await self.bot.fetch_user(user_id)
+                if fetched_user:
+                    random_user_objects.append(fetched_user)
+
+            # Ensure two separate user objects are obtained
+            if len(random_user_objects) >= 2:
+                random_user_object_1 = random_user_objects[0]
+                random_user_object_2 = random_user_objects[1]
+                await ctx.send(f"{random_user_object_1.display_name} {random_user_object_2.display_name}")
+            else:
+                # Handle case if there are fewer than 2 non-author users in the database
+                return None, None
+
+
+
+    # Initialize Firebase
+
+
+    @commands.command(aliases=["up", "img"], brief=_("upload a image to use"))
+    @locale_doc
+    async def upload(self, ctx):
+        try:
+            cred = credentials.Certificate("acc.json")
+            if not firebase_admin._apps:
+                firebase_app = firebase_admin.initialize_app(cred)
+            else:
+                firebase_app = firebase_admin.get_app()
+
+            firebase_storage = storage.bucket("fablerpg-f74c2.appspot.com")
+
+
+            if ctx.message.attachments:
+                for attachment in ctx.message.attachments:
+                    if attachment.height:  # Checking if it's an image
+                        # Get user-specific filename
+                        user_filename = f"{ctx.author.id}_{attachment.filename}"  # You can also use ctx.author.name for username
+
+                        # Get image data
+                        image_data = await attachment.read()
+
+                        # Upload image to Firebase Storage
+                        blob = firebase_storage.blob(user_filename)
+                        blob.upload_from_string(image_data)
+
+                        # Get the URL of the uploaded image
+                        image_url = blob.public_url
+
+                        await ctx.send(f"Uploaded image URL: {image_url}")
+                        return
+                else:
+                    await ctx.send("Please upload an image.")
+            else:
+                await ctx.send("Please attach an image with the $upload command.")
+        except Exception as e:
+            await ctx.send(f"An error occurred while uploading the image: {e}")
+
     @has_char()
     @commands.command(brief=_("[basic] Change your profile background"))
     @locale_doc
@@ -320,24 +527,27 @@ class Patreon(commands.Cog):
             Only basic (or above) tier patrons can use this command."""
         )
         premade = [f"{self.bot.BASE_URL}/profile/premade{i}.png" for i in range(1, 14)]
+
         if url == "reset":
             url = 0
-        elif url.startswith("http") and (
-            url.endswith(".png") or url.endswith(".jpg") or url.endswith(".jpeg")
-        ):
-            url = url
         elif url.isdigit():
             try:
                 url = premade[int(url) - 1]
             except IndexError:
                 return await ctx.send(_("That is not a valid premade background."))
         else:
-            return await ctx.send(
-                _(
-                    "I couldn't read that URL. Does it start with `http://` or"
-                    " `https://` and is either a png or jpeg?"
-                )
-            )
+            is_image = await is_valid_image(url)
+            if is_image == "none":
+                return await ctx.send(_("The provided URL does not point to a valid image."))
+
+        import validators
+
+        allowed_whitelist = ["https://cdn.discordapp.com", "https://i.ibb.co", "https://media.discordapp.net",
+                             "https://idlerpg.xyz", "https://gcdnb.pbrd.co", "https://storage.googleapis.com"]
+
+        if not any(url.startswith(whitelisted) for whitelisted in allowed_whitelist):
+            return await ctx.send(_("The provided URL is not in the allowed whitelist."))
+
         if url != 0 and not await user_is_patron(self.bot, ctx.author):
             raise commands.CheckFailure("You are not a donator.")
         try:
@@ -367,7 +577,7 @@ class Patreon(commands.Cog):
             Only basic (or above) tier patrons can use this command."""
         )
         if not url.startswith("http") and (
-            url.endswith(".png") or url.endswith(".jpg") or url.endswith(".jpeg")
+                url.endswith(".png") or url.endswith(".jpg") or url.endswith(".jpeg")
         ):
             return await ctx.send(
                 _(
@@ -380,9 +590,9 @@ class Patreon(commands.Cog):
             return await ctx.send(_("Overlay type must be `dark` or `light`."))
 
         async with self.bot.trusted_session.post(
-            f"{self.bot.config.external.okapi_url}/api/genoverlay",
-            json={"url": url, "style": style},
-            headers={"Authorization": self.bot.config.external.okapi_token},
+                f"{self.bot.config.external.okapi_url}/api/genoverlay",
+                json={"url": url, "style": style},
+                headers={"Authorization": self.bot.config.external.okapi_token},
         ) as req:
             if req.status == 200:
                 background = await req.text()

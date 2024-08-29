@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,24 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 import asyncio
 
 import chess.engine
@@ -122,109 +141,85 @@ class Chess(commands.Cog):
     @chess.group(invoke_without_command=True, brief=_("Play a chess match."))
     @locale_doc
     async def match(
-        self,
-        ctx,
-        difficulty: int | None = 3,
-        enemy: discord.Member = None,
+            self,
+            ctx,
+            difficulty: int | None = 3,
+            enemy: discord.Member = None,
     ):
-        _(
-            """`[difficulty]` - A whole number between 1 and 10; defaults to 3
-            `[enemy]` - A user; defaults to nobody
-
-            Starts a game of chess.
-            If a difficulty is given, you will play against the Stockfish chess AI with the given difficulty.
-            If an enemy is given, you will play against that enemy, no matter if you set a difficulty or not.
-
-            You are able to choose which side you want to play as at the beginning using the emojis.
-            If you play against an enemy and both of you are ELO-registered, you are given the choice to play ranked or not.
-
-            There can only be one chess game in one channel at a time.
-
-            Chess moves can be sent in several formats:
-              -`g1f3`
-              -`Nf3` ⚠
-              -`0-0`
-              -`xe3`
-
-            *Keep in mind that these are case sensitive:*
-            Pieces are upper case:
-              -King = K
-              -Queen = Q
-              -Bishop = B
-              -Knight = N
-              -Rook = R
-              -Pawn = no notation
-            Fields are lower case."""
-        )
-        if enemy == ctx.author:
-            return await ctx.send(_("You cannot play against yourself."))
-        if difficulty < 1 or difficulty > 10:
-            return await ctx.send(_("Difficulty may be 1-10."))
-        emojis = {"\U00002b1c": "white", "\U00002b1b": "black"}
-        msg = await ctx.send(_("Please choose the colour you want to take."))
-        await msg.add_reaction("\U00002b1c")
-        await msg.add_reaction("\U00002b1b")
-
-        def check(r, u):
-            return u == ctx.author and r.message.id == msg.id and str(r.emoji) in emojis
-
         try:
-            r, u = await self.bot.wait_for("reaction_add", timeout=30, check=check)
-        except asyncio.TimeoutError:
-            return await ctx.send(_("You took too long to choose a side."))
+            if enemy == ctx.author:
+                return await ctx.send(_("You cannot play against yourself."))
+            if difficulty < 1 or difficulty > 40:
+                return await ctx.send(_("Difficulty may be 1-40."))
 
-        await msg.delete()
-        side = emojis[str(r.emoji)]
+            emojis = {"\U00002b1c": "white", "\U00002b1b": "black"}
+            msg = await ctx.send(_("Please choose the colour you want to take."))
+            await msg.add_reaction("\U00002b1c")
+            await msg.add_reaction("\U00002b1b")
 
-        if enemy is not None:
-            async with self.bot.pool.acquire() as conn:
-                player_elo = await conn.fetchval(
-                    'SELECT elo FROM chess_players WHERE "user"=$1;', ctx.author.id
-                )
-                enemy_elo = await conn.fetchval(
-                    'SELECT elo FROM chess_players WHERE "user"=$1;', enemy.id
-                )
-            if player_elo is not None and enemy_elo is not None:
-                rated = await ctx.confirm(
-                    _(
-                        "{author}, would you like to play an ELO-rated match? Your elo"
-                        " is {elo1}, their elo is {elo2}."
-                    ).format(
-                        author=ctx.author.mention, elo1=player_elo, elo2=enemy_elo
-                    ),
-                )
+            def check(r, u):
+                return u == ctx.author and r.message.id == msg.id and str(r.emoji) in emojis
+
+            try:
+                r, u = await self.bot.wait_for("reaction_add", timeout=30, check=check)
+            except asyncio.TimeoutError:
+                return await ctx.send(_("You took too long to choose a side."))
+
+            await msg.delete()
+            side = emojis[str(r.emoji)]
+
+            if enemy is not None:
+                async with self.bot.pool.acquire() as conn:
+                    player_elo = await conn.fetchval(
+                        'SELECT elo FROM chess_players WHERE "user"=$1;', ctx.author.id
+                    )
+                    enemy_elo = await conn.fetchval(
+                        'SELECT elo FROM chess_players WHERE "user"=$1;', enemy.id
+                    )
+                if player_elo is not None and enemy_elo is not None:
+                    rated = await ctx.confirm(
+                        _(
+                            "{author}, would you like to play an ELO-rated match? Your elo"
+                            " is {elo1}, their elo is {elo2}."
+                        ).format(
+                            author=ctx.author.mention, elo1=player_elo, elo2=enemy_elo
+                        ),
+                    )
+                else:
+                    rated = False
+
+                if not await ctx.confirm(
+                        _(
+                            "{user}, you have been challenged to a chess match by {author}."
+                            " They will be {color}. Do you accept? {extra}"
+                        ).format(
+                            user=enemy.mention,
+                            author=ctx.author.mention,
+                            color=side,
+                            extra=_("**The match will be ELO rated!**") if rated else "",
+                        ),
+                        user=enemy,
+                ):
+                    return await ctx.send(
+                        _("{user} rejected the chess match.").format(user=enemy)
+                    )
             else:
                 rated = False
 
-            if not await ctx.confirm(
-                _(
-                    "{user}, you have been challenged to a chess match by {author}."
-                    " They will be {color}. Do you accept? {extra}"
-                ).format(
-                    user=enemy.mention,
-                    author=ctx.author.mention,
-                    color=side,
-                    extra=_("**The match will be ELO rated!**") if rated else "",
-                ),
-                user=enemy,
-            ):
-                return await ctx.send(
-                    _("{user} rejected the chess match.").format(user=enemy)
-                )
-        else:
-            rated = False
-
-        if self.matches.get(ctx.channel.id):
-            return await ctx.send(_("Wait for the match here to end."))
-        self.matches[ctx.channel.id] = ChessGame(
-            ctx, ctx.author, side, enemy, difficulty, rated
-        )
-        try:
-            await self.matches[ctx.channel.id].run()
-        except Exception as e:
+            if self.matches.get(ctx.channel.id):
+                return await ctx.send(_("Wait for the match here to end."))
+            self.matches[ctx.channel.id] = ChessGame(
+                ctx, ctx.author, side, enemy, difficulty, rated
+            )
+            try:
+                await self.matches[ctx.channel.id].run()
+            except Exception as inner_exception:
+                del self.matches[ctx.channel.id]
+                raise inner_exception
             del self.matches[ctx.channel.id]
-            raise e
-        del self.matches[ctx.channel.id]
+
+        except Exception as e:
+            await ctx.send(f"An error occurred: {str(e)}")
 
     @match.command(brief=_("Shows past moves for this game"))
     @locale_doc

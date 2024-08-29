@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 # This is an implementation of Werewolf: The Pact
 # The Pact includes the extensions:
 # - New Moon
@@ -252,10 +255,11 @@ DESCRIPTIONS = {
 
 class Game:
     def __init__(
-        self, ctx: Context, players: list[discord.Member], mode: str, speed: str
+            self, ctx: Context, players: list[discord.Member], mode: str, speed: str
     ) -> None:
         self.ctx = ctx
         self.mode = mode
+        self.task = None
         self.speed = speed
         self.timers = {"Extended": 90, "Normal": 60, "Fast": 45, "Blitz": 30}
         self.timer = self.timers.get(self.speed, 60)
@@ -279,8 +283,8 @@ class Game:
             # Replace all non-Werewolf to Hunters
             for idx, role in enumerate(self.available_roles):
                 if (
-                    Role.BIG_BAD_WOLF.value <= role.value <= Role.WOLF_NECROMANCER.value
-                    or role == Role.WHITE_WOLF
+                        Role.BIG_BAD_WOLF.value <= role.value <= Role.WOLF_NECROMANCER.value
+                        or role == Role.WHITE_WOLF
                 ):
                     self.available_roles[idx] = Role.WEREWOLF
                 elif role != Role.WEREWOLF:
@@ -323,8 +327,8 @@ class Game:
             role = player_or_role.role
             if player_or_role.cursed:
                 if not (
-                    Role.WEREWOLF.value <= role.value <= Role.WOLF_NECROMANCER.value
-                    or role.value == Role.WHITE_WOLF.value
+                        Role.WEREWOLF.value <= role.value <= Role.WOLF_NECROMANCER.value
+                        or role.value == Role.WHITE_WOLF.value
                 ):
                     role_name = "Cursed "
         else:
@@ -351,6 +355,23 @@ class Game:
     @property
     def new_afk_players(self) -> list[Player]:
         return [player for player in self.alive_players if player.to_check_afk]
+
+    async def relay_messages(self, wolves):
+        def check(message):
+            return message.author in [wolf.user for wolf in wolves] and isinstance(message.channel, discord.DMChannel)
+
+        try:
+            while True:
+                message = await self.ctx.bot.wait_for('message', check=check)
+
+                # Relay the message to the other wolves
+                for wolf in wolves:
+                    if wolf.user != message.author:
+                        await wolf.user.send(f"{message.author}: {message.content}")
+
+        except asyncio.CancelledError:
+            # Handle cancellation cleanup here
+            print("Task cancelled")
 
     async def wolves(self) -> Player | None:
         if healer := self.get_player_with_role(Role.HEALER):
@@ -401,46 +422,86 @@ class Game:
         )
         fmt.add_line(
             _(
-                "**Please do not spam and talk slowly! Relaying can take a while if"
-                " there are many Werewolves!**"
+                "**Please take it slow when messaging through me, it may cause issues!**"
             )
         )
         for user in wolves:
             for page in fmt.pages:
                 await user.send(page)
         nominated = []
+        channels_ids = [
+            str(p.user.dm_channel.id)
+            for p in wolves
+            if p.user.dm_channel is not None
+        ]
+
         try:
             async with asyncio.timeout(self.timer):
-                while len(nominated) < 10:
-                    channels_ids = [
-                        str(p.user.dm_channel.id)
-                        for p in wolves
-                        if p.user.dm_channel is not None
-                    ]
-                    msg = await self.ctx.bot.wait_for_dms(
-                        check={
-                            "author": {"id": wolves_users},
-                            "channel_id": channels_ids,
-                        },
-                    )
-                    if msg.content.isdigit() and int(msg.content) in possible_targets:
-                        werewolf = discord.utils.get(
-                            self.alive_players, user=msg.author
-                        )
-                        submitted_target = possible_targets[int(msg.content)]
-                        if submitted_target in werewolf.own_lovers:
-                            await werewolf.send(_("❌ You cannot nominate your Lover."))
-                            continue
-                        nominated.append(possible_targets[int(msg.content)])
-                        text = _("**{werewolf}** nominated **{victim}**").format(
-                            werewolf=msg.author, victim=nominated[-1].user
-                        )
-                    else:
-                        text = f"**{msg.author}**: {msg.content}"
-                    for user in wolves:
-                        await user.send(text)
+                for werewolf in wolves:
+                    if werewolf.user.dm_channel is None:
+                        await werewolf.user.create_dm()
+
+                # Start the relay_messages function as a background task
+                self.task = asyncio.create_task(self.relay_messages(wolves))
+
+                try:
+                    # List to store tasks for each werewolf
+                    voting_tasks = []
+
+                    # Loop through each werewolf
+                    for werewolf in wolves:
+                        # Define a task for each werewolf
+                        async def werewolf_vote(werewolf):
+                            # Create a message with reactions for each possible target
+                            message = await werewolf.user.dm_channel.send("Please select your nomination:")
+                            for i, target in enumerate(possible_targets):
+                                await message.add_reaction(f"{i + 1}⃣")
+
+                            # Define a check function to ensure that the reaction is from the werewolf and is a valid choice
+                            def check(reaction, user):
+                                return (
+                                        user == werewolf.user
+                                        and reaction.message.id == message.id
+                                        and reaction.emoji in [f"{i + 1}⃣" for i in range(len(possible_targets))]
+                                )
+
+                            try:
+                                # Wait for the werewolf to select a target
+                                reaction, user = await self.ctx.bot.wait_for("reaction_add", check=check,
+                                                                             timeout=self.timer)
+
+                                # Get the index of the selected target
+                                index = int(reaction.emoji[0])
+
+                                # Get the selected target
+                                submitted_target = possible_targets[index]
+
+                                if submitted_target in werewolf.own_lovers:
+                                    await werewolf.user.dm_channel.send("❌ You cannot nominate your Lover.")
+                                else:
+                                    nominated.append(submitted_target)
+                                    text = f"**{werewolf.user}** nominated **{submitted_target.user}**"
+
+                                    for user in wolves:
+                                        await user.user.dm_channel.send(text)
+                            except asyncio.TimeoutError:
+                                await werewolf.user.dm_channel.send("⏰ You took too long to vote.")
+                            except Exception as e:
+                                print(f"An error occurred: {e}")
+
+                        # Append the task for the current werewolf to the list of tasks
+                        voting_tasks.append(werewolf_vote(werewolf))
+
+                    # Run all voting tasks concurrently
+                    await asyncio.gather(*voting_tasks)
+
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+
         except asyncio.TimeoutError:
             pass
+
         if not nominated:
             for user in wolves:
                 await user.send(
@@ -480,9 +541,9 @@ class Game:
                                 timeout=self.timer,
                             ).paginate(self.ctx, location=werewolf.user)
                         except (
-                            self.ctx.bot.paginator.NoChoice,
-                            discord.Forbidden,
-                            discord.HTTPException,
+                                self.ctx.bot.paginator.NoChoice,
+                                discord.Forbidden,
+                                discord.HTTPException,
                         ):
                             await werewolf.send(_("You timed out and didn't vote."))
                             return None, None
@@ -532,10 +593,12 @@ class Game:
             if cursed_wolf_father := self.get_player_with_role(Role.CURSED_WOLF_FATHER):
                 target = await cursed_wolf_father.curse_target(target)
         await asyncio.sleep(5)  # Give them time to read
+        if self.task:
+            self.task.cancel()
         return target
 
     async def announce_pure_soul(
-        self, pure_soul: Player, ex_pure_soul: Player | None = None
+            self, pure_soul: Player, ex_pure_soul: Player | None = None
     ) -> None:
         for p in self.players:
             if ex_pure_soul:
@@ -672,13 +735,13 @@ class Game:
         target = await self.wolves()
         targets = [target] if target is not None else []
         if (
-            sum(
-                1
-                for player in self.players
-                if player.dead
-                and (player.role == Role.WEREWOLF or player.role == Role.WILD_CHILD)
-            )
-            == 0
+                sum(
+                    1
+                    for player in self.players
+                    if player.dead
+                       and (player.role == Role.WEREWOLF or player.role == Role.WILD_CHILD)
+                )
+                == 0
         ):
             if big_bad_wolf := self.get_player_with_role(Role.BIG_BAD_WOLF):
                 if target := await big_bad_wolf.choose_villager_to_kill(targets):
@@ -751,13 +814,13 @@ class Game:
                 if target:
                     targets.append(target)
         if (
-            sum(
-                1
-                for player in self.players
-                if player.dead
-                and (player.role == Role.WEREWOLF or player.role == Role.WILD_CHILD)
-            )
-            == 0
+                sum(
+                    1
+                    for player in self.players
+                    if player.dead
+                       and (player.role == Role.WEREWOLF or player.role == Role.WILD_CHILD)
+                )
+                == 0
         ):
             if big_bad_wolf := self.get_player_with_role(Role.BIG_BAD_WOLF):
                 if target := await big_bad_wolf.choose_villager_to_kill(targets):
@@ -806,25 +869,26 @@ class Game:
         eligible_players = [player.user for player in self.alive_players]
         try:
             async with asyncio.timeout(self.timer) as cm:
+                sneaky = False
                 start = datetime.datetime.utcnow()
                 while len(nominated) < 10:
                     msg = await self.ctx.bot.wait_for(
                         "message",
                         check=lambda x: x.author in eligible_players
-                        and x.channel.id == self.ctx.channel.id
-                        and (
-                            len(x.mentions) > 0
-                            or (
-                                x.content == self.judge_symbol and not self.judge_spoken
-                            )
-                            or ("objection" in x.content.lower())
-                        ),
+                                        and x.channel.id == self.ctx.channel.id
+                                        and (
+                                                len(x.mentions) > 0
+                                                or (
+                                                        x.content == self.judge_symbol and not self.judge_spoken
+                                                )
+                                                or ("objection" in x.content.lower())
+                                        ),
                     )
                     if "objection" in msg.content.lower() and discord.utils.get(
-                        self.alive_players,
-                        role=Role.LAWYER,
-                        user=msg.author,
-                        has_objected=False,
+                            self.alive_players,
+                            role=Role.LAWYER,
+                            user=msg.author,
+                            has_objected=False,
                     ):
                         lawyer = self.get_player_with_role(Role.LAWYER)
                         lawyer.has_objected = True
@@ -838,7 +902,7 @@ class Game:
                         nominated.clear()
                         raise asyncio.TimeoutError()
                     if msg.content == self.judge_symbol and discord.utils.get(
-                        self.alive_players, role=Role.JUDGE, user=msg.author
+                            self.alive_players, role=Role.JUDGE, user=msg.author
                     ):
                         second_election = True
                         self.judge_spoken = True
@@ -854,12 +918,12 @@ class Game:
                     )
                     for user in msg.mentions:
                         if user in eligible_players and (
-                            (user not in nominated and len(nominated) < 10)
-                            or (
-                                user not in nominated_by_paragon
-                                and len(nominated_by_paragon) < 10
-                                and paragon
-                            )
+                                (user not in nominated and len(nominated) < 10)
+                                or (
+                                        user not in nominated_by_paragon
+                                        and len(nominated_by_paragon) < 10
+                                        and paragon
+                                )
                         ):
                             if paragon:
                                 nominated_by_paragon.append(user)
@@ -880,29 +944,119 @@ class Game:
                             if len(nominated) == 1:
                                 mention_time = datetime.datetime.utcnow()
                                 if (mention_time - start) >= datetime.timedelta(
-                                    seconds=self.timer - 10
+                                        seconds=self.timer - 10
                                 ):
                                     # Seems sneaky, extend talk time when there's only 10 seconds left
                                     time_to_add = int(self.timer / 2)
-                                    cm.shift(time_to_add)
+                                    finaltime = self.timer + time_to_add
                                     await self.ctx.send(
                                         _(
-                                            "Seems sneaky, I added {time_to_add}"
-                                            " seconds talk time."
-                                        ).format(time_to_add=time_to_add)
+                                            "{finaltime}"
+                                        ).format(finaltime=finaltime)
                                     )
+                                    sneaky = True
+
+                                    await self.ctx.send(
+                                        _(
+                                            _(
+                                                "Seems sneaky, I added {time_to_add}"
+                                                " seconds talk time."
+                                            ).format(time_to_add=time_to_add)
+                                        ))
                             await self.ctx.send(announce)
         except asyncio.TimeoutError:
+
             pass
+        if sneaky == True:
+            try:
+                async with asyncio.timeout(time_to_add) as cm:
+
+                    start = datetime.datetime.utcnow()
+                    while len(nominated) < 10:
+                        msg = await self.ctx.bot.wait_for(
+                            "message",
+                            check=lambda x: x.author in eligible_players
+                                            and x.channel.id == self.ctx.channel.id
+                                            and (
+                                                    len(x.mentions) > 0
+                                                    or (
+                                                            x.content == self.judge_symbol and not self.judge_spoken
+                                                    )
+                                                    or ("objection" in x.content.lower())
+                                            ),
+                        )
+                        if "objection" in msg.content.lower() and discord.utils.get(
+                                self.alive_players,
+                                role=Role.LAWYER,
+                                user=msg.author,
+                                has_objected=False,
+                        ):
+                            lawyer = self.get_player_with_role(Role.LAWYER)
+                            lawyer.has_objected = True
+                            await self.ctx.send(
+                                _(
+                                    "**OBJECTION!!!** the **{role}** {user} protested."
+                                    " Nomination ends."
+                                ).format(role=lawyer.role_name, user=lawyer.user.mention)
+                            )
+                            nominated_by_paragon.clear()
+                            nominated.clear()
+                            raise asyncio.TimeoutError()
+                        if msg.content == self.judge_symbol and discord.utils.get(
+                                self.alive_players, role=Role.JUDGE, user=msg.author
+                        ):
+                            second_election = True
+                            self.judge_spoken = True
+                            judge = self.get_player_with_role(Role.JUDGE)
+                            await judge.send(
+                                _(
+                                    "I received your secret phrase. We will hold another"
+                                    " election after this."
+                                )
+                            )
+                        paragon = discord.utils.get(
+                            self.alive_players, role=Role.PARAGON, user=msg.author
+                        )
+                        for user in msg.mentions:
+                            if user in eligible_players and (
+                                    (user not in nominated and len(nominated) < 10)
+                                    or (
+                                            user not in nominated_by_paragon
+                                            and len(nominated_by_paragon) < 10
+                                            and paragon
+                                    )
+                            ):
+                                if paragon:
+                                    nominated_by_paragon.append(user)
+                                    announce = _(
+                                        "**{role} {player}** nominated **{nominee}**."
+                                    ).format(
+                                        role=paragon.role_name,
+                                        player=msg.author,
+                                        nominee=user,
+                                    )
+                                    if user not in nominated:
+                                        nominated.append(user)
+                                else:
+                                    nominated.append(user)
+                                    announce = _(
+                                        "**{player}** nominated **{nominee}**."
+                                    ).format(player=msg.author, nominee=user)
+
+                                await self.ctx.send(announce)
+            except asyncio.TimeoutError:
+
+                pass
+        sneaky = False
         if len(nominated_by_paragon) > 0:
             nominated = nominated_by_paragon
         if not nominated:
             return None, second_election
         if len(nominated) == 1:
             return nominated[0], second_election
-        emojis = ([f"{index+1}\u20e3" for index in range(9)] + ["\U0001f51f"])[
-            : len(nominated)
-        ]
+        emojis = ([f"{index + 1}\u20e3" for index in range(9)] + ["\U0001f51f"])[
+                 : len(nominated)
+                 ]
         texts = "\n".join(
             [f"{emoji} - {user.mention}" for emoji, user in zip(emojis, nominated)]
         )
@@ -950,7 +1104,7 @@ class Game:
             (
                 new_mapping[0]
                 if len(new_mapping) == 1
-                or nominated[new_mapping[0]] > nominated[new_mapping[1]]
+                   or nominated[new_mapping[0]] > nominated[new_mapping[1]]
                 else None
             ),
             second_election,
@@ -1005,77 +1159,66 @@ class Game:
             return
         if len(self.new_afk_players) < 1:
             return
+
         await self.ctx.send(
             _(
                 "Checking AFK players if they're still in the game... Should be done in"
                 " {timer} seconds."
             ).format(timer=self.timer)
         )
-        afk_users_id = []
-        for afk_player in self.new_afk_players:
-            afk_users_id.append(str(afk_player.user.id))
-            await afk_player.send(
-                _(
-                    "You failed to vote. This is just an AFK check:\n**Send any message"
-                    " until I acknowledged that you're not AFK. You have {timer}"
-                    " seconds.**"
-                ).format(timer=self.timer)
-            )
-        not_afk = []
-        try:
-            async with asyncio.timeout(self.timer):
-                channels_ids = [
-                    str(p.user.dm_channel.id)
-                    for p in self.new_afk_players
-                    if p.user.dm_channel is not None
-                ]
-                while len(not_afk) < len(self.new_afk_players):
-                    msg = await self.ctx.bot.wait_for_dms(
-                        check={
-                            "author": {"id": afk_users_id},
-                            "channel_id": channels_ids,
-                        },
-                    )
-                    if msg.author.id not in not_afk:
-                        not_afk.append(msg.author.id)
-                        afk_users_id.remove(str(msg.author.id))
-                        channels_ids.remove(str(msg.channel.id))
-                        await msg.author.send(
-                            _(
-                                "☑️ You're not AFK. You can stop sending"
-                                " message now.\n{game_link}"
-                            ).format(game_link=self.game_link)
-                        )
-        except asyncio.TimeoutError:
-            pass
 
         afk_players_to_kill = []
-        for afk_player in self.new_afk_players:
-            afk_player.to_check_afk = False
-            if afk_player.user.id not in not_afk:
-                afk_player.afk_strikes += 1
-                if afk_player.afk_strikes >= 3:
-                    if not afk_player.dead:
-                        await afk_player.send(
-                            _(
-                                "**Strike 3!** You will now be killed by the game for"
-                                " having 3 strikes of being AFK. Goodbye!"
-                            )
+
+        async def prompt_player(player):
+            try:
+                await player.send(f"AFK CHECK {player.user.mention}!")
+                result = await self.ctx.bot.paginator.Choose(
+                    entries=["Not AFK"],
+                    return_index=True,
+                    title=("Please use the dropdown"
+                           " so I can acknowledge that you're not AFK. You have {timer}"
+                           " seconds."),
+                    timeout=self.timer,
+                ).paginate(self.ctx, player.user)
+
+                # Check if the player selected "Not AFK" and send the message
+                if result == 0:  # 0 indicates "Not AFK"
+                    await player.send(_("You have been verified as not AFK."))
+                    return True  # Return True indicating the player responded
+
+            except self.ctx.bot.paginator.NoChoice:
+                pass  # Player didn't respond, no need to increment strikes
+
+            # If the function reaches here, it means player didn't respond
+            return False  # Return False indicating the player didn't respond
+
+        # Gather results of the prompt_player function
+        results = await asyncio.gather(*[prompt_player(player) for player in self.new_afk_players])
+
+        for player, result in zip(self.new_afk_players, results):
+            if not result:
+                # Player didn't choose anything
+                player.afk_strikes += 1
+                if player.afk_strikes >= 3:
+                    if not player.dead:
+                        await player.send(
+                            _("**Strike 3!** You will now be killed by"
+                              " the game for having 3 strikes of being AFK. Goodbye!")
                         )
-                        afk_players_to_kill.append(afk_player)
+                        afk_players_to_kill.append(player)
                 else:
-                    await afk_player.send(
-                        _(
-                            "⚠️ **Strike {strikes}!** You have been"
-                            " marked as AFK. __You'll be killed after 3 strikes.__"
-                        ).format(strikes=afk_player.afk_strikes)
+                    await player.send(
+                        _("⚠️ **Strike {strikes}!** You have been"
+                          " marked as AFK. __You'll be killed after 3 strikes.__"
+                          ).format(strikes=player.afk_strikes)
                     )
+
+        # Kill the AFK players if needed
         for afk_player in afk_players_to_kill:
             await self.ctx.send(
-                _(
-                    "**{afk_player}** has been killed by"
-                    " the game due to having 3 strikes of AFK."
-                ).format(afk_player=afk_player.user.mention)
+                _("**{afk_player}** has been killed by"
+                  " the game due to having 3 strikes of AFK."
+                  ).format(afk_player=afk_player.user.mention)
             )
             await afk_player.kill()
 
@@ -1115,6 +1258,8 @@ class Game:
 
     async def day(self, deaths: list[Player]) -> None:
         await self.ctx.send(_("🌤️ **The sun rises...**"))
+        if self.task:
+            self.task.cancel()
         for death in deaths:
             await death.kill()
         if self.rusty_sword_disease_night is not None:
@@ -1175,6 +1320,8 @@ class Game:
                                 " game..."
                             ).format(day_count=self.night_no)
                         )
+                        if self.task:
+                            self.task.cancel()
                         break
             else:
                 self.night_no += 1
@@ -1183,6 +1330,8 @@ class Game:
             round_no += 1
 
         winner = self.winner()
+        if self.task:
+            self.task.cancel()
         results_pretext = _("Werewolf {mode} results:").format(mode=self.mode)
         if isinstance(winner, Player):
             if not self.winning_side:
@@ -1201,6 +1350,8 @@ class Game:
             for page in paginator.pages:
                 await self.ctx.send(page)
             await self.reveal_others()
+            if self.task:
+                self.task.cancel()
         elif winner is None:
             await self.ctx.send(
                 _("{results_pretext} **No one won!**").format(
@@ -1209,6 +1360,8 @@ class Game:
             )
             await self.reveal_others()
         else:
+            if self.task:
+                self.task.cancel()
             # Due to IndexError, no need to reveal players
             await self.ctx.send(
                 _("{results_pretext} **{winner} won!**").format(
@@ -1224,8 +1377,8 @@ class Game:
             for player in self.alive_players:
                 if player.has_won == has_won:
                     if (
-                        player.role != player.initial_roles[0]
-                        or len(player.initial_roles) > 1
+                            player.role != player.initial_roles[0]
+                            or len(player.initial_roles) > 1
                     ):
                         initial_role_info = _(
                             " A **{initial_roles}** initially."
@@ -1335,79 +1488,68 @@ class Player:
             pass
 
     async def choose_users(
-        self,
-        title: str,
-        list_of_users: list[Player],
-        amount: int,
-        required: bool = True,
+            self,
+            title: str,
+            list_of_users: list[Player],
+            amount: int,
+            required: bool = True,
     ) -> list[Player]:
         fmt = [
-            f"{idx}. {p.user}"
-            f" {p.user.mention}"
-            f" {self.game.get_role_name(self.revealed_roles[p]) if p in self.revealed_roles else ''}"
-            for idx, p in enumerate(list_of_users, 1)
+            f"{idx}. {p.user} {p.user.mention} {self.game.get_role_name(self.revealed_roles[p]) if p in self.revealed_roles else ''}"
+            for idx, p in enumerate(list_of_users, 2)
         ]
         if not required:
-            fmt.insert(0, "0. Dismiss")
-            prompt_msg = _(
-                "**Type the number of the user to choose for this action. Type `0` to"
-                " dismiss. You need to choose {amount} more.**"
-            )
-            start_num = 0
-        else:
-            prompt_msg = _(
-                "**Type the number of the user to choose for this action. You need to"
-                " choose {amount} more.**"
-            )
+            fmt.insert(0, "1. Dismiss")
+            prompt_msg = f"**Type the number of the user to choose for this action. Type `1` to dismiss. You need to choose {amount} more.**"
             start_num = 1
+        else:
+            prompt_msg = f"**Type the number of the user to choose for this action. You need to choose {amount} more.**"
+            start_num = 2
+
         paginator = commands.Paginator(prefix="", suffix="")
         paginator.add_line(f"**{title}**")
         for i in fmt:
             paginator.add_line(i)
+
         for page in paginator.pages:
             await self.send(page)
+
         mymsg = await self.send(prompt_msg.format(amount=amount))
         if mymsg is None:
             await self.game.ctx.send(
-                _(
-                    "I couldn't send a DM to someone. All players should allow me to"
-                    " send Direct Messages to them."
-                )
-            )
+                "I couldn't send a DM to someone. All players should allow me to send Direct Messages to them.")
+
         chosen = []
         while len(chosen) < amount:
-            msg = await self.game.ctx.bot.wait_for_dms(
-                check={
-                    "author": {"id": str(self.user.id)},
-                    "content": [
-                        str(i) for i in range(start_num, len(list_of_users) + 1)
-                    ],
-                    "channel_id": [
-                        str(
-                            self.user.dm_channel.id
-                            if self.user.dm_channel is not None
-                            else ""
-                        )
-                    ],
-                },
-                timeout=self.game.timer,
-            )
-            if int(msg.content) == 0 and not required:
-                return []
-            player = list_of_users[int(msg.content) - 1]
-            if player in chosen:
-                await self.send(
-                    _("🚫 You've chosen **{player}** already.").format(
-                        player=player.user
-                    )
+            try:
+                response = await self.game.ctx.bot.wait_for(
+                    'message',
+                    check=lambda message: message.author == self.user and message.content.isdigit(),
+                    timeout=self.game.timer
                 )
-                continue
-            if amount > 1:
-                await self.send(
-                    _("**{player}** has been selected.").format(player=player.user)
-                )
-            chosen.append(player)
-            await mymsg.edit(content=prompt_msg.format(amount=amount - len(chosen)))
+
+                choice = int(response.content)
+                if choice == 1 and not required:
+                    return []
+
+                if choice < start_num or choice > len(list_of_users) + 1:
+                    await self.send("Invalid choice. Please select a valid number.")
+                    continue
+
+                player = list_of_users[choice - 2]
+
+                if player in chosen:
+                    await self.send(f"🚫 You've chosen **{player.user}** already.")
+                else:
+                    if amount > 1:
+                        await self.send(f"**{player.user}** has been selected.")
+                    chosen.append(player)
+                    await mymsg.edit(content=prompt_msg.format(amount=amount - len(chosen)))
+
+            except asyncio.TimeoutError:
+                await self.send("Selection timed out.")
+                break
+
         return chosen
 
     async def send_information(self) -> None:
@@ -1655,7 +1797,7 @@ class Player:
             p
             for p in self.game.alive_players
             if p.side not in (Side.WOLVES, Side.WHITE_WOLF)
-            and p not in targets + self.own_lovers
+               and p not in targets + self.own_lovers
         ]
         if not possible_targets:
             await self.send(
@@ -1843,7 +1985,7 @@ class Player:
         )
 
     async def send_family_member_msg(
-        self, relationship: str, new_member: Player
+            self, relationship: str, new_member: Player
     ) -> None:
         await self.send(
             _(
@@ -1859,7 +2001,7 @@ class Player:
         try:
             to_inspect = await self.choose_users(
                 _("👁️ Choose someone whose identity you would like to see."),
-                list_of_users=[u for u in self.game.alive_players if u != self],
+                list_of_users=[p for p in self.game.alive_players if p != self],
                 amount=1,
                 required=False,
             )
@@ -2415,7 +2557,7 @@ class Player:
 
     async def curse_target(self, target: Player) -> None:
         if not self.has_cursed_wolf_father_ability or discord.utils.get(
-            self.game.players, cursed=True
+                self.game.players, cursed=True
         ):
             return target
         # This one's commented out as we want Cursed Wolf Father infects someone secretly
@@ -2684,7 +2826,7 @@ class Player:
                     additional_deaths.append(target)
             elif self.role == Role.THE_OLD and self.died_from_villagers:
                 if cursed_one := discord.utils.get(
-                    self.game.alive_players, cursed=True
+                        self.game.alive_players, cursed=True
                 ):
                     cursed_one.cursed = False  # set temporarily to False
                 for p in self.game.alive_players:
@@ -2758,25 +2900,25 @@ class Player:
         if self.side == Side.SUPERSPREADER:
             # Another win stealer but loses to Flutist as it's later called on wake order
             if (
-                all(
-                    [
-                        p.infected_with_virus or p == self
-                        for p in self.game.alive_players
-                    ]
-                )
-                and self.game.winning_side != "Flutist"
+                    all(
+                        [
+                            p.infected_with_virus or p == self
+                            for p in self.game.alive_players
+                        ]
+                    )
+                    and self.game.winning_side != "Flutist"
             ):
                 self.game.winning_side = self.role_name
                 return True
         elif self.side == Side.VILLAGERS:
             if (
-                not any(
-                    [
-                        player.side in (Side.WOLVES, Side.WHITE_WOLF)
-                        for player in self.game.alive_players
-                    ]
-                )
-                and self.game.winning_side != "Flutist"
+                    not any(
+                        [
+                            player.side in (Side.WOLVES, Side.WHITE_WOLF)
+                            for player in self.game.alive_players
+                        ]
+                    )
+                    and self.game.winning_side != "Flutist"
             ):
                 self.game.winning_side = "Villagers"
                 return True
@@ -2786,13 +2928,13 @@ class Player:
                 return True
         elif self.side == Side.WOLVES or self.side == Side.WHITE_WOLF:
             if (
-                all(
-                    [
-                        player.side == Side.WOLVES or player.side == Side.WHITE_WOLF
-                        for player in self.game.alive_players
-                    ]
-                )
-                and self.game.winning_side != "Flutist"
+                    all(
+                        [
+                            player.side == Side.WOLVES or player.side == Side.WHITE_WOLF
+                            for player in self.game.alive_players
+                        ]
+                    )
+                    and self.game.winning_side != "Flutist"
             ):
                 self.game.winning_side = "Werewolves"
                 return True

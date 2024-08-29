@@ -1,6 +1,25 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -101,6 +120,10 @@ class Gods(commands.Cog):
                 ctx.author.id,
             )
 
+            value = float(value)
+            value = int(value)
+
+
             await self.bot.log_transaction(
                 ctx,
                 from_=ctx.author.id,
@@ -131,16 +154,27 @@ class Gods(commands.Cog):
 
             (This command has a cooldown of 3 minutes.)"""
         )
+        god_roles = {
+            'Drakath': 1153880715419717672,
+            'Sepulchure': 1153897989635571844,
+            'Astraea': 1153887457775980566
+        }
         if not has_no_god(ctx):
             if ctx.character_data["reset_points"] < 1:
                 return await ctx.send(_("You have no more reset points."))
             if not await ctx.confirm(
-                _(
-                    "You already chose a god. This change now will cost you a reset"
-                    " point. Are you sure?"
-                )
+                    _(
+                        "You already chose a god. This change now will cost you a reset"
+                        " point. Are you sure?"
+                    )
             ):
                 return
+            old_god = ctx.character_data["god"]
+            old_role_id = god_roles.get(old_god)
+            if old_role_id:
+                old_role = ctx.guild.get_role(old_role_id)
+                if old_role and old_role in ctx.author.roles:
+                    await ctx.author.remove_roles(old_role)
         if ctx.character_data["reset_points"] < 0:
             return await ctx.send("You became Godless and cannot follow a God anymore.")
         embeds = [
@@ -158,22 +192,22 @@ class Gods(commands.Cog):
         ).paginate(ctx)
 
         if not await ctx.confirm(
-            _(
-                """\
-⚠ **Warning**: When you have a God, your luck will change (**including decreasing it!**)
-This impacts your adventure success chances amongst other things.
-
-Are you sure you want to follow {god}?"""
-            ).format(god=god)
+                _(
+                    """\
+        ⚠ **Warning**: When you have a God, your luck will change (**including decreasing it!**)
+        This impacts your adventure success chances amongst other things.
+    
+        Are you sure you want to follow {god}?"""
+                ).format(god=god)
         ):
             return
 
         async with self.bot.pool.acquire() as conn:
             if (
-                await conn.fetchval(
-                    'SELECT reset_points FROM profile WHERE "user"=$1;', ctx.author.id
-                )
-                < 0
+                    await conn.fetchval(
+                        'SELECT reset_points FROM profile WHERE "user"=$1;', ctx.author.id
+                    )
+                    < 0
             ):
                 return await ctx.send(
                     _(
@@ -192,7 +226,17 @@ Are you sure you want to follow {god}?"""
                 'UPDATE profile SET "god"=$1 WHERE "user"=$2;', god, ctx.author.id
             )
 
-        await ctx.send(_("You are now a follower of {god}.").format(god=god))
+        # Assign the chosen god's role to the user
+        role_id = god_roles.get(god)
+        if role_id:
+            role = ctx.guild.get_role(role_id)
+            if role:
+                await ctx.author.add_roles(role)
+                await ctx.send(_("You are now a follower of {god}.").format(god=god))
+            else:
+                await ctx.send(_("Failed to assign role."))
+        else:
+            await ctx.send(_("Failed to assign role."))
 
     @has_char()
     @has_god()
@@ -211,14 +255,22 @@ Are you sure you want to follow {god}?"""
             # this shouldn't happen in normal play, but you never know
             return await ctx.send(_("You already became Godless before."))
 
-        if not await ctx.confirm(
-            _(
-                """\
-    ⚠ **Warning**: After unfollowing your God, **you cannot follow any God anymore** and will remain Godless.
-    If your luck is below average and you decided to unfollow, know that **your luck will not return to 1.0 immediately**.
+        old_god = ctx.character_data["god"]
+        god_roles = {
+            'Drakath': 1153880715419717672,
+            'Sepulchure': 1153897989635571844,
+            'Astraea': 1153887457775980566
+        }
 
-    Are you sure you want to become Godless?"""
-            )
+
+        if not await ctx.confirm(
+                _(
+                    """\
+        ⚠ **Warning**: After unfollowing your God, **you cannot follow any God anymore** and will remain Godless.
+        If your luck is below average and you decided to unfollow, know that **your luck will not return to 1.0 immediately**.
+    
+        Are you sure you want to become Godless?"""
+                )
         ):
             return await ctx.send(
                 _("{god} smiles proudly down upon you.").format(
@@ -226,11 +278,18 @@ Are you sure you want to follow {god}?"""
                 )
             )
 
-        await self.bot.pool.execute(
-            'UPDATE profile SET "favor"=0, "god"=NULL, "reset_points"=-1 WHERE'
-            ' "user"=$1;',
-            ctx.author.id,
-        )
+        async with self.bot.pool.acquire() as conn:
+            await conn.execute(
+                'UPDATE profile SET "favor"=0, "god"=NULL, "reset_points"=-1 WHERE'
+                ' "user"=$1;',
+                ctx.author.id,
+            )
+
+        old_role_id = god_roles.get(old_god)
+        if old_role_id:
+            old_role = ctx.guild.get_role(old_role_id)
+            if old_role and old_role in ctx.author.roles:
+                await ctx.author.remove_roles(old_role)
 
         await ctx.send(_("You are now Godless."))
 

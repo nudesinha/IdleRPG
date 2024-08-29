@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,13 +16,17 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-import datetime
 
+
+import time
+import datetime as dt
+import random
+import uuid
 from contextlib import suppress
 
 import discord
 
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.http import handle_message_parameters
 
 from classes.converters import (
@@ -33,7 +38,7 @@ from classes.converters import (
 from classes.errors import NoChoice
 from classes.items import ALL_ITEM_TYPES, ItemType
 from cogs.shard_communication import user_on_cooldown as user_cooldown
-from utils.checks import has_char, has_money
+from utils.checks import has_char, has_money, is_gm
 from utils.i18n import _, locale_doc
 
 
@@ -41,6 +46,76 @@ class Trading(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.markdown_escaper = commands.clean_content(escape_markdown=True)
+
+        # Add a list to track sold-out items
+        self.sold_out_items = []
+
+        # Global variable to store the last refresh timestamp
+        self.last_refresh_time = 0
+
+        self.decrease_hunger_task.start()
+        self.decrease_happy_task.start()
+
+    @tasks.loop(minutes=999999)  # Adjust the interval as needed (e.g., minutes=10 means it runs every 10 minutes)
+    async def decrease_hunger_task(self):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Fetch all pets from the database
+                all_pets = await conn.fetch('SELECT * FROM user_pets;')
+
+                for pet in all_pets:
+                    hunger = random.randint(1, 5)
+                    # Decrease hunger by a certain amount (adjust as needed)
+                    new_hunger = max(0, pet['hunger'] - int(hunger))  # Decrease hunger by 5, but not below 0
+
+                    # Update the pet's hunger in the database
+                    await conn.execute(
+                        'UPDATE user_pets SET hunger=$1 WHERE user_id=$2 AND pet_name=$3;',
+                        new_hunger,
+                        pet['user_id'],
+                        pet['pet_name'],
+                    )
+
+        except Exception as e:
+            print(f"An error occurred in decrease_hunger_task: {e}")
+
+    @tasks.loop(minutes=999999)
+    async def decrease_happy_task(self):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Fetch all pets from the database
+                all_pets = await conn.fetch('SELECT * FROM user_pets;')
+
+                for pet in all_pets:
+                    # Determine the decrease in happiness based on hunger ranges
+                    if pet['hunger'] > 80:
+                        happiness_decrease = random.randint(1, 3)
+                    elif pet['hunger'] > 60:
+                        happiness_decrease = random.randint(4, 6)
+                    elif pet['hunger'] > 40:
+                        happiness_decrease = random.randint(7, 9)
+                    elif pet['hunger'] > 20:
+                        happiness_decrease = random.randint(10, 12)
+                    else:
+                        happiness_decrease = random.randint(13, 15)
+
+                    # Calculate the new happiness value
+                    new_happiness = max(0, pet['happiness'] - happiness_decrease)
+
+                    # Update the pet's happiness in the database
+                    await conn.execute(
+                        'UPDATE user_pets SET happiness=$1 WHERE user_id=$2 AND pet_name=$3;',
+                        new_happiness,
+                        pet['user_id'],
+                        pet['pet_name'],
+                    )
+
+        except Exception as e:
+            print(f"An error occurred in decrease_happy_task: {e}")
+
+
+        except Exception as e:
+            print(f"An error occurred in decrease_hunger_task: {e}")
 
     @has_char()
     @commands.command(brief=_("Put an item in the market"))
@@ -91,7 +166,7 @@ class Trading(commands.Cog):
                     )
                 )
             if (
-                builds := await self.bot.get_city_buildings(ctx.character_data["guild"])
+                    builds := await self.bot.get_city_buildings(ctx.character_data["guild"])
             ) and builds["trade_building"] != 0:
                 tax = 0
             else:
@@ -110,8 +185,8 @@ class Trading(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": tax},
+                    subject="shop tax",
+                    data={"Gold": tax},
                     conn=conn,
                 )
             await conn.execute(
@@ -201,16 +276,16 @@ class Trading(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": item["price"] + tax},
+                    subject="shop buy - bot give",
+                    data={"Gold": item["price"] + tax},
                     conn=conn,
                 )
             await self.bot.log_transaction(
                 ctx,
                 from_=ctx.author.id,
                 to=item["owner"],
-                subject="money",
-                data={"Amount": item["price"]},
+                subject="shop buy",
+                data={"Gold": item["price"]},
                 conn=conn,
             )
             await self.bot.log_transaction(
@@ -230,15 +305,79 @@ class Trading(commands.Cog):
         with suppress(discord.Forbidden, discord.HTTPException):
             dm_channel = await self.bot.http.start_private_message(item["owner"])
             with handle_message_parameters(
-                content="A traveler has bought your **{name}** for **${price}** from the market.".format(
-                    name=item["name"], price=item["price"]
-                )
+                    content="A traveler has bought your **{name}** for **${price}** from the market.".format(
+                        name=item["name"], price=item["price"]
+                    )
             ) as params:
                 await self.bot.http.send_message(
                     dm_channel.get("id"),
                     params=params,
                 )
         return True
+
+    @has_char()
+    @is_gm()
+    @commands.command(brief=_("Restock all items from 1144898209144127589 in the market"))
+    @locale_doc
+    async def restock(self, ctx):
+        _(
+            """
+            This command restocks all the items owned by 1144898209144127589 to the shop based on their stats.
+            The pricing will be done based on the item's stats, and rounded to the nearest 1000.
+            Note: Bows, maces, and scythes will have their stats halved for pricing.
+            """
+        )
+        async with self.bot.pool.acquire() as conn:
+            items = await conn.fetch(
+                "SELECT * FROM inventory i JOIN allitems ai ON (i.item=ai.id) WHERE ai.owner=$1;",
+                1144898209144127589,
+            )
+
+            for item in items:
+                price = None
+                max_stat = max(item["damage"], item["armor"])
+
+                # Adjust max_stat for bow, mace, and scythe
+                if item["type"] in ['Bow', 'Mace', 'Scythe']:
+                    max_stat = max_stat // 2
+
+                # Now use the adjusted max_stat for pricing
+                if 3 <= max_stat <= 25:
+                    price = round(random.randint(1000, 10000), -3)
+                elif 26 <= max_stat <= 35:
+                    price = round(random.randint(7000, 20000), -3)
+                elif 36 <= max_stat <= 39:
+                    price = round(random.randint(10000, 20000), -3)
+                elif 40 <= max_stat <= 41:
+                    price = round(random.randint(70000, 90000), -3)
+                elif 41 <= max_stat <= 45:
+                    price = round(random.randint(170000, 400000), -3)
+                elif 46 <= max_stat <= 48:
+                    price = round(random.randint(400000, 900000), -3)
+                elif max_stat == 49 or max_stat == 98:
+                    price = round(random.randint(1700000, 3000000), -3)
+                elif max_stat == 50 or max_stat == 100:
+                    price = round(random.randint(2700000, 6000000), -3)
+
+                if price:
+                    # Insert item into market
+                    await conn.execute(
+                        "INSERT INTO market (item, price) VALUES ($1, $2);",
+                        item["id"],
+                        price,
+                    )
+                    # Delete the item from inventory
+                    await conn.execute(
+                        "DELETE FROM inventory i USING allitems ai WHERE i.item=ai.id AND ai.id=$1 AND ai.owner=$2;",
+                        item["id"],
+                        1144898209144127589,
+                    )
+
+        await ctx.send(
+            _(
+                "Successfully restocked items from 1144898209144127589 to the shop! Use `{prefix}shop` to view them in the market!"
+            ).format(prefix=ctx.clean_prefix)
+        )
 
     @has_char()
     @commands.command(brief=_("Remove your item from the shop."))
@@ -289,13 +428,13 @@ class Trading(commands.Cog):
     )
     @locale_doc
     async def shophistory(
-        self,
-        ctx,
-        itemtype: str.title = "All",
-        minstat: float = 0.00,
-        after_date: DateNewerThan(
-            datetime.date(year=2018, month=3, day=17)
-        ) = datetime.date(year=2018, month=3, day=17),
+            self,
+            ctx,
+            itemtype: str.title = "All",
+            minstat: float = 0.00,
+            after_date: DateNewerThan(
+                dt.date(year=2018, month=3, day=17)
+            ) = dt.date(year=2018, month=3, day=17),
     ):
         _(
             """`[itemtype]` - The type of item to filter; defaults to all item types
@@ -384,11 +523,11 @@ class Trading(commands.Cog):
     @commands.command(aliases=["market", "m"], brief=_("View the global item market"))
     @locale_doc
     async def shop(
-        self,
-        ctx,
-        itemtype: str.title = "All",
-        minstat: float = 0.00,
-        highestprice: IntGreaterThan(-1) = 1_000_000,
+            self,
+            ctx,
+            itemtype: str = "All",
+            minstat: float = 0.00,
+            highestprice: IntGreaterThan(-1) = 1_000_000,
     ):
         _(
             """`[itemtype]` - The type of item to filter; defaults to all item types
@@ -399,13 +538,37 @@ class Trading(commands.Cog):
 
             To quickly buy an item, you can use the 💰 emoji."""
         )
-        if itemtype != "All" and ItemType.from_string(itemtype) is None:
+
+        item_types = []
+
+        if itemtype == "1h":
+            item_types.extend(["Sword", "Axe", "Wand", "Dagger", "Knife", "Spear", "Hammer"])
+        elif itemtype == "2h":
+            item_types.extend(["Bow", "Scythe", "Mace"])
+        elif itemtype == "Shield":
+            item_types.append("Shield")
+        elif itemtype.lower() in [t.value.lower() for t in ALL_ITEM_TYPES]:
+            # Allow searching for individual items (case-insensitive comparison)
+            item_types.append(itemtype.capitalize())  # Capitalize the itemtype to match the database values
+
+
+        elif itemtype != "All":
             return await ctx.send(
-                _("Use either {types} or `All` as a type to filter for.").format(
+                _("Use either {types}, `1h`, `2h`, or `Shield` as a type to filter for.").format(
                     types=", ".join(f"`{t.value}`" for t in ALL_ITEM_TYPES)
                 )
             )
-        if itemtype == "All":
+
+        if item_types:
+            items = await self.bot.pool.fetch(
+                "SELECT * FROM allitems ai JOIN market m ON (ai.id=m.item) WHERE"
+                ' ai."type"=ANY($1) AND (ai."damage">=$2 OR ai."armor">=$3) AND m."price"<=$4;',
+                item_types,
+                minstat,
+                minstat,
+                highestprice,
+            )
+        else:
             items = await self.bot.pool.fetch(
                 "SELECT * FROM allitems ai JOIN market m ON (ai.id=m.item) WHERE"
                 ' m."price"<=$1 AND (ai."damage">=$2 OR ai."armor">=$3);',
@@ -413,29 +576,14 @@ class Trading(commands.Cog):
                 minstat,
                 minstat,
             )
-        elif itemtype == "Shield":
-            items = await self.bot.pool.fetch(
-                "SELECT * FROM allitems ai JOIN market m ON (ai.id=m.item) WHERE"
-                ' ai."type"=$1 AND ai."armor">=$2 AND m."price"<=$3;',
-                itemtype,
-                minstat,
-                highestprice,
-            )
-        else:
-            items = await self.bot.pool.fetch(
-                "SELECT * FROM allitems ai JOIN market m ON (ai.id=m.item) WHERE"
-                ' ai."type"=$1 AND ai."damage">=$2 AND m."price"<=$3;',
-                itemtype,
-                minstat,
-                highestprice,
-            )
+
         if not items:
             return await ctx.send(_("No results."))
 
         entries = [
             (
                 discord.Embed(
-                    title=_("IdleRPG Shop"),
+                    title=_("Fable Shop"),
                     description=_("Use `{prefix}buy {item}` to buy this.").format(
                         prefix=ctx.clean_prefix, item=item["item"]
                     ),
@@ -467,11 +615,11 @@ class Trading(commands.Cog):
     @commands.command(brief=_("Offer an item to a user"))
     @locale_doc
     async def offer(
-        self,
-        ctx,
-        itemid: int,
-        price: IntFromTo(0, 100_000_000),
-        user: MemberWithCharacter,
+            self,
+            ctx,
+            itemid: int,
+            price: IntFromTo(0, 100_000_000),
+            user: MemberWithCharacter,
     ):
         _(
             """`<itemid>` - The ID of the item to offer
@@ -501,26 +649,26 @@ class Trading(commands.Cog):
 
         if item["equipped"]:
             if not await ctx.confirm(
-                _("Are you sure you want to sell your equipped {item}?").format(
-                    item=item["name"]
-                )
+                    _("Are you sure you want to sell your equipped {item}?").format(
+                        item=item["name"]
+                    )
             ):
                 return await ctx.send(_("Item selling cancelled."))
 
         if not await ctx.confirm(
-            _(
-                "{user}, {author} offered a **{stat}** **{itemtype}**! React to buy it!"
-                " The price is **${price}**. You have **2 Minutes** to accept the trade"
-                " or the offer will be canceled."
-            ).format(
-                user=user.mention,
-                author=ctx.author.mention,
-                stat=item["damage"] + item["armor"],
-                itemtype=item["type"],
-                price=price,
-            ),
-            user=user,
-            timeout=120,
+                _(
+                    "{user}, {author} offered a **{stat}** **{itemtype}**! React to buy it!"
+                    " The price is **${price}**. You have **2 Minutes** to accept the trade"
+                    " or the offer will be canceled."
+                ).format(
+                    user=user.mention,
+                    author=ctx.author.mention,
+                    stat=item["damage"] + item["armor"],
+                    itemtype=item["type"],
+                    price=price,
+                ),
+                user=user,
+                timeout=120,
         ):
             return await ctx.send(_("They didn't want it."))
 
@@ -568,7 +716,7 @@ class Trading(commands.Cog):
                 ctx,
                 from_=ctx.author.id,
                 to=user.id,
-                subject="item",
+                subject="item = OFFER",
                 data={"Name": item["name"], "Value": item["value"]},
                 conn=conn,
             )
@@ -628,14 +776,14 @@ class Trading(commands.Cog):
 
             if equipped:
                 if not await ctx.confirm(
-                    _(
-                        "You are about to sell {amount} equipped items. Are you sure?"
-                    ).format(amount=equipped),
-                    timeout=6,
+                        _(
+                            "You are about to sell {amount} equipped items. Are you sure?"
+                        ).format(amount=equipped),
+                        timeout=6,
                 ):
                     return await ctx.send(_("Cancelled."))
             if buildings := await self.bot.get_city_buildings(
-                ctx.character_data["guild"]
+                    ctx.character_data["guild"]
             ):
                 value = int(value * (1 + buildings["trade_building"] / 2))
             async with conn.transaction():
@@ -650,7 +798,7 @@ class Trading(commands.Cog):
                 from_=1,
                 to=ctx.author.id,
                 subject="merch",
-                data={"Amount": f"{len(itemids)} items", "Value": value},
+                data={"Gold": f"{len(itemids)} items", "Value": value},
                 conn=conn,
             )
         await ctx.send(
@@ -670,14 +818,14 @@ class Trading(commands.Cog):
         await self.bot.reset_cooldown(ctx)  # we finished
 
     @has_char()
-    @user_cooldown(1800)
+    @user_cooldown(120)
     @commands.command(brief=_("Merch all non-equipped items"))
     @locale_doc
     async def merchall(
-        self,
-        ctx,
-        maxstat: IntFromTo(0, 100) = 100,
-        minstat: IntFromTo(0, 100) = 0,
+            self,
+            ctx,
+            maxstat: IntFromTo(0, 100) = 100,
+            minstat: IntFromTo(0, 100) = 0,
     ):
         _(
             # xgettext: no-python-format
@@ -703,14 +851,14 @@ class Trading(commands.Cog):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(_("Nothing to merch."))
             if buildings := await self.bot.get_city_buildings(
-                ctx.character_data["guild"]
+                    ctx.character_data["guild"]
             ):
                 money = int(money * (1 + buildings["trade_building"] / 2))
             if not await ctx.confirm(
-                _(
-                    "You are about to sell **{count} items for ${money}!**\nAre you"
-                    " sure you want to do this?"
-                ).format(count=count, money=money)
+                    _(
+                        "You are about to sell **{count} items for ${money}!**\nAre you"
+                        " sure you want to do this?"
+                    ).format(count=count, money=money)
             ):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(_("Cancelled selling your items."))
@@ -742,7 +890,7 @@ class Trading(commands.Cog):
                 from_=1,
                 to=ctx.author.id,
                 subject="merch",
-                data={"Amount": f"{count} items", "Value": money},
+                data={"Gold": f"{count} items", "Value": money},
                 conn=conn,
             )
         await ctx.send(
@@ -828,19 +976,32 @@ class Trading(commands.Cog):
 
         item = offers[offerid]
 
+        embed = discord.Embed(
+            title=_("Successfully bought offer"),
+            description=(
+                f"**Name:** {item[0]['name']}\n"
+                f"**Type:** {item[0]['type_']}\n"
+                f"**Stat:** {item[0]['armor'] if item[0]['type_'] == 'Shield' else item[0]['damage']}\n"
+                f"**Price:** ${item[1]}"
+            ),
+            color=discord.Color.green(),
+        )
+
         async with self.bot.pool.acquire() as conn:
             if not await has_money(self.bot, ctx.author.id, item[1], conn=conn):
                 return await ctx.send(_("You are too poor to buy this item."))
+
             await conn.execute(
                 'UPDATE profile SET "money"="money"-$1 WHERE "user"=$2;',
                 item[1],
                 ctx.author.id,
             )
+
             await self.bot.log_transaction(
                 ctx,
                 from_=1,
                 to=ctx.author.id,
-                subject="item",
+                subject="trader ITEM",
                 data={
                     "Name": item[0]["name"],
                     "Value": item[0]["value"],
@@ -848,13 +1009,545 @@ class Trading(commands.Cog):
                 },
                 conn=conn,
             )
+
             await self.bot.create_item(**item[0], conn=conn)
-        await ctx.send(
-            _(
-                "Successfully bought offer **{offer}**. Use `{prefix}inventory` to view"
-                " your updated inventory."
-            ).format(offer=offerid + 1, prefix=ctx.clean_prefix)
+
+        await ctx.send(embed=embed)
+
+    async def update_user_eggs(self, user_id, egg_name, conn):
+        # Update user's eggs in the database
+        await conn.execute(
+            'INSERT INTO user_eggs (user_id, egg_name) VALUES ($1, $2);',
+            user_id,
+            egg_name,
         )
+
+    @is_gm()
+    @commands.command(brief=_("Buys an egg from the trader"))
+    async def petshop(self, ctx):
+        try:
+            current_time = time.time()
+
+            # Check if 24 hours have passed since the last refresh
+            if current_time - self.last_refresh_time >= 24 * 60 * 60:
+                self.last_refresh_time = current_time  # Update the last refresh time
+                self.sold_out_items = []  # Reset sold-out items
+
+                # Refresh eggs and prices
+                egg_rarities = [
+                    {"name": "Common Egg", "emoji": "<:common_egg:1200370597239201822>", "weight": 56.5},
+                    {"name": "Uncommon Egg", "emoji": "<:uncommon_egg:1200372201359147018>", "weight": 30},
+                    {"name": "Rare Egg", "emoji": "<:rare_egg:1200371479490076702>", "weight": 10},
+                    {"name": "Very Rare Egg", "emoji": "<:veryrare_egg:1200371709560229979>", "weight": 3},
+                    {"name": "Legendary Egg", "emoji": "<:legendary_egg:1200370906552352848>", "weight": 0.5}
+                ]
+
+                offers = []
+                for i in range(10):  # Display 10 items in the shop
+                    egg_rarity = random.choices(
+                        egg_rarities,
+                        weights=[entry['weight'] / sum(entry['weight'] for entry in egg_rarities) for entry in
+                                 egg_rarities]
+                    )[0]
+
+                    if egg_rarity['name'] == 'Common Egg':
+                        price = random.randint(130000, 180000)
+                    # ... (rest of the code remains unchanged)
+                    elif egg_rarity['name'] == 'Uncommon Egg':
+                        price = random.randint(200000, 300000)
+                    elif egg_rarity['name'] == 'Rare Egg':
+                        price = random.randint(300000, 750000)
+                    elif egg_rarity['name'] == 'Very Rare Egg':
+                        price = random.randint(750000, 1250000)
+                    elif egg_rarity['name'] == 'Legendary Egg':
+                        price = random.randint(2000000, 5000000)
+                    else:
+                        # Handle the case where the rarity is not recognized
+                        price = 0  # You may want to set a default value or handle this differently
+
+                    offers.append((egg_rarity, price))
+            else:
+                # If not yet 24 hours, use the existing offers
+                offers = getattr(self, "offers", [])
+
+            # Save the offers for future use
+            self.offers = offers
+
+            entries = [
+                f"{index + 1}. {i[0]['emoji']} ({i[0]['name']}) - **${i[1]}{' (Sold Out)' if index in self.sold_out_items else ''}**"
+                for index, i in enumerate(offers) if i[0] is not None
+            ]
+
+            choices = [egg[0]['name'] for egg in offers]
+
+            try:
+                offerid = await self.bot.paginator.Choose(
+                    title=_("The Trader"),
+                    placeholder=_("Select an egg to purchase"),
+                    return_index=True,
+                    entries=entries,
+                    choices=choices,
+                ).paginate(ctx)
+
+                # Check if the selected item is sold out
+                if offerid in self.sold_out_items:
+                    return await ctx.send(_("This egg is sold out. Please choose another one."))
+
+            except NoChoice:  # prevent cooldown reset
+                return await ctx.send(_("You did not choose anything."))
+
+            selected_egg = offers[offerid][0]
+            self.sold_out_items.append(offerid)  # Mark the selected item as sold
+
+            async with self.bot.pool.acquire() as conn:
+                user_eggs = await conn.fetch(
+                    'SELECT * FROM user_eggs WHERE user_id=$1;',
+                    ctx.author.id,
+                )
+
+                if len(user_eggs) >= 3:
+                    return await ctx.send(_("You already have the maximum limit of 3 eggs. You cannot buy more."))
+
+            embed = discord.Embed(
+                title=_("Successfully bought egg"),
+                description=(
+                    f"{selected_egg['emoji']} ({selected_egg['name']}) - **${offers[offerid][1]}**"
+                ),
+                color=discord.Color.green(),
+            )
+
+            async with self.bot.pool.acquire() as conn:
+                if not await has_money(self.bot, ctx.author.id, offers[offerid][1], conn=conn):
+                    return await ctx.send(_("You are too poor to buy this egg."))
+
+                await conn.execute(
+                    'UPDATE profile SET "money"="money"-$1 WHERE "user"=$2;',
+                    offers[offerid][1],
+                    ctx.author.id,
+                )
+
+                await self.update_user_eggs(ctx.author.id, selected_egg['name'], conn=conn)
+
+                await self.bot.log_transaction(
+                    ctx,
+                    from_=1,
+                    to=ctx.author.id,
+                    subject="trader EGG",
+                    data={
+                        "Egg": selected_egg['name'],
+                        "Price": offers[offerid][1],
+                    },
+                    conn=conn,
+                )
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    async def get_incubation_time(self, rarity):
+        # Implement the logic to calculate incubation time based on egg rarity
+        if rarity == "Common Egg":
+            return dt.timedelta(hours=1)
+        elif rarity == "Uncommon Egg":
+            return dt.timedelta(hours=2)
+        elif rarity == "Rare Egg":
+            return dt.timedelta(hours=4)
+        elif rarity == "Very Rare Egg":
+            return dt.timedelta(hours=8)
+        elif rarity == "Legendary Egg":
+            return dt.timedelta(hours=12)
+        else:
+            # Default to 1 hour if the rarity is not recognized
+            return dt.timedelta(hours=1)
+
+    async def start_incubation(self, user_id, egg_id, egg_name, ctx):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Check if the user_id exists in user_eggs
+                user_owns_egg = await conn.fetchval(
+                    'SELECT COUNT(*) FROM user_eggs WHERE user_id = $1 AND id = $2;',
+                    user_id, egg_id
+                )
+
+                if not user_owns_egg:
+                    return await ctx.send(_("Invalid user ID or egg ID."))
+
+                # Check if the egg is already incubating
+                is_incubating = await conn.fetchval(
+                    'SELECT COUNT(*) FROM incubating_eggs WHERE user_id = $1 AND egg_id = $2;',
+                    user_id, egg_id
+                )
+
+                if is_incubating:
+                    return await ctx.send(_("This egg is already incubating."))
+
+                # Get incubation time based on egg rarity
+                incubation_time = await self.get_incubation_time(egg_name)
+
+                # Insert into incubating_eggs
+                await conn.execute(
+                    'INSERT INTO incubating_eggs (user_id, egg_id, egg_name, start_time) VALUES ($1, $2, $3, $4);',
+                    user_id, egg_id, egg_name, dt.datetime.now(dt.timezone.utc)
+                )
+
+                await ctx.send(_("Egg incubated successfully!"))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    async def get_incubation_status(self, user_id, egg_name, unique_identifier, ctx):
+        # Get the remaining time and other details from Redis
+        incubation_key = f'incubation:{user_id}:{unique_identifier}'
+        incubation_details = await self.bot.redis.hgetall(incubation_key)
+        await ctx.send("Checking Key..")
+
+        if incubation_details:
+            await ctx.send("Found a key!..")
+            # Extract remaining time from the hash
+            remaining_time = int(incubation_details.get('remaining_time', 0))
+            return remaining_time if remaining_time > 0 else None
+        else:
+            await ctx.send("I did not find a key!..")
+            return None
+
+    async def update_incubation_status(self, user_id, egg_name, unique_identifier, time_delta, hp_change):
+        # Update remaining time and HP in the Redis hash
+        incubation_key = f'incubation:{user_id}:{unique_identifier}'
+        self.bot.redis.hincrbyfloat(incubation_key, 'remaining_time', -time_delta.total_seconds())
+        self.bot.redis.hincrby(incubation_key, 'hp', hp_change)
+
+        # Update the egg's HP in the database (optional)
+        async with self.bot.pool.acquire() as conn:
+            await conn.execute(
+                'UPDATE user_eggs SET hp=LEAST(100, hp+$1) WHERE user_id=$2 AND egg_name=$3;',
+                hp_change,
+                user_id,
+                egg_name,
+            )
+
+    async def start_incubation(self, user_id, egg_id, egg_name, ctx):
+        try:
+            # Check if the user_id exists in user_eggs
+            async with self.bot.pool.acquire() as conn:
+                user_exists = await conn.fetchval('SELECT COUNT(*) FROM user_eggs WHERE user_id = $1 AND id = $2;',
+                                                  user_id, egg_id)
+
+            if not user_exists:
+                return await ctx.send(_("Invalid user ID."))
+
+            # Get incubation time based on egg rarity
+            incubation_time = await self.get_incubation_time(egg_name)
+
+            # Set the current time in UTC
+            current_time = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc)
+
+            # Set the incubation end time as an offset-aware datetime
+            incubation_end_time = current_time + incubation_time
+
+            # Use the egg ID for each egg in the incubation key
+            incubation_key = f'incubation:{user_id}:{egg_id}'
+
+            # Insert into incubating_eggs with the incubation end time
+            async with self.bot.pool.acquire() as conn:
+                await conn.execute(
+                    'INSERT INTO incubating_eggs (user_id, egg_id, egg_name, incubation_end_time) VALUES ($1, $2, $3, $4);',
+                    user_id,
+                    egg_id,
+                    egg_name,
+                    incubation_end_time,
+                )
+
+            await ctx.send(_("Egg incubated successfully!"))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    async def get_incubation_status(self, user_id, egg_name, unique_identifier, ctx):
+        # Get the remaining time and other details from the database
+        async with self.bot.pool.acquire() as conn:
+            incubation_details = await conn.fetchrow(
+                'SELECT incubation_end_time FROM incubating_eggs WHERE user_id=$1 AND egg_id=$2 AND egg_name=$3;',
+                user_id,
+                unique_identifier,
+                egg_name,
+            )
+
+        if incubation_details:
+            incubation_end_time = incubation_details['incubation_end_time']
+
+            # Calculate remaining time
+            remaining_time = max(0,
+                                 (incubation_end_time - dt.datetime.utcnow().replace(
+                                     tzinfo=dt.timezone.utc)).total_seconds())
+
+            # Format remaining time as HH:MM:SS
+            hours, remainder = divmod(remaining_time, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            remaining_time_str = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+
+            return remaining_time_str
+
+        return None
+
+    @is_gm()
+    @commands.command(brief=_("Incubates a purchased egg"))
+    async def incubate(self, ctx, egg_id: int):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Check if the user owns the selected egg
+                user_owns_egg = await conn.fetchval(
+                    'SELECT COUNT(*) FROM user_eggs WHERE user_id=$1 AND id=$2;',
+                    ctx.author.id,
+                    egg_id,
+                )
+
+                if user_owns_egg:
+                    # Retrieve the selected egg's details
+                    selected_egg = await conn.fetchrow(
+                        'SELECT egg_name FROM user_eggs WHERE id=$1;',
+                        egg_id,
+                    )
+
+                    if selected_egg:
+                        egg_name = selected_egg['egg_name']
+
+                        # Start incubation using the dedicated method
+                        await self.start_incubation(ctx.author.id, egg_id, egg_name, ctx)
+
+                        await ctx.send(_("Egg incubated successfully!"))
+                    else:
+                        await ctx.send(_("Invalid egg ID."))
+                else:
+                    await ctx.send(_("You don't own the selected egg."))
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    async def choose_pet(self, rarity):
+        if rarity == "Common Egg":
+            pet_chances = {
+                "Rock Pup": {"attack": 10, "defense": 5, "hp": 80, "food": 100, "hunger": 0, "happiness": 100,
+                             "picture_link": "https://gcdnb.pbrd.co/images/GmulytelU0XB.png"},
+            }
+        elif rarity == "Uncommon Egg":
+            pet_chances = {
+                "Pet4": {"attack": 15, "defense": 10, "hp": 85, "food": 100, "hunger": 0, "happiness": 100,
+                         "picture_link": "link4"},
+            }
+        # Add more cases for other rarities
+
+        # Randomly choose a pet with equal weights
+        pet_name = random.choice(list(pet_chances.keys()))
+
+        return pet_name, pet_chances[pet_name]
+
+    @is_gm()
+    @commands.command(brief=_("Hatch an incubating egg"))
+    async def hatch(self, ctx, egg_id: int):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Check if the user owns the selected egg
+                user_owns_egg = await conn.fetchval(
+                    'SELECT COUNT(*) FROM user_eggs WHERE user_id=$1 AND id=$2;',
+                    ctx.author.id,
+                    egg_id,
+                )
+
+                if user_owns_egg:
+                    # Check if the egg is currently incubating
+                    incubating_egg = await conn.fetchrow(
+                        'SELECT egg_name, incubation_end_time FROM incubating_eggs WHERE user_id=$1 AND egg_id=$2;',
+                        ctx.author.id,
+                        egg_id,
+                    )
+
+                    if incubating_egg:
+                        egg_name = incubating_egg['egg_name']
+                        end_time = incubating_egg['incubation_end_time']
+
+                        # Check if the current time is past the end time
+                        if dt.datetime.now(dt.timezone.utc) >= end_time:
+                            # Choose a pet based on the rarity
+                            pet_name, pet_attributes = await self.choose_pet(egg_name)
+
+                            # Remove the egg from incubating_eggs first
+                            await conn.execute(
+                                'DELETE FROM incubating_eggs WHERE user_id=$1 AND egg_id=$2;',
+                                ctx.author.id,
+                                egg_id,
+                            )
+
+                            # Insert the pet into user_pets with XP set to 0
+                            await conn.execute(
+                                'INSERT INTO user_pets (user_id, pet_name, rarity, xp, attack, defense, hp, food, hunger, happiness, picture_link, currentHP) '
+                                'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);',
+                                ctx.author.id,
+                                pet_name,
+                                egg_name,
+                                0,  # XP set to 0
+                                pet_attributes["attack"],
+                                pet_attributes["defense"],
+                                pet_attributes["hp"],
+                                pet_attributes["food"],
+                                pet_attributes["hunger"],
+                                pet_attributes["happiness"],
+                                pet_attributes["picture_link"],
+                                pet_attributes["hp"],
+                            )
+
+                            # Remove the egg from user_eggs
+                            await conn.execute(
+                                'DELETE FROM user_eggs WHERE user_id=$1 AND id=$2;',
+                                ctx.author.id,
+                                egg_id,
+                            )
+
+                            await ctx.send(_(f"Egg hatched successfully! You obtained a new pet: {pet_name}"))
+                        else:
+                            await ctx.send(_("The selected egg is still incubating."))
+                    else:
+                        await ctx.send(_("The selected egg is not currently incubating."))
+                else:
+                    await ctx.send(_("You don't own the selected egg."))
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    async def xp_to_level(self, xp):
+        levels = {
+            1: 0,
+            2: 1500,
+            3: 9000,
+            4: 22500,
+            5: 42000,
+            6: 67500,
+            7: 99000,
+            8: 136500,
+            9: 180000,
+            10: 229500,
+            11: 285000,
+            12: 346500,
+            13: 414000,
+            14: 487500,
+            15: 567000,
+            16: 697410,
+            17: 857814,
+            18: 1055112,
+            19: 1297787,
+            20: 1596278,
+        }
+
+        for level, xp_threshold in levels.items():
+            if xp < xp_threshold:
+                return level - 1
+        return len(levels)
+
+    @commands.command(brief=_("View your pets"))
+    async def pets(self, ctx):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Fetch the user's pets from the database
+                user_pets = await conn.fetch(
+                    'SELECT * FROM user_pets WHERE user_id=$1;',
+                    ctx.author.id,
+                )
+
+                if not user_pets:
+                    await ctx.send(_("You don't have any pets yet. Hatch an egg to get a pet!"))
+                    return
+
+                for pet in user_pets:
+                    level = await self.xp_to_level(pet['xp'])
+
+                    embed = discord.Embed(title=f"Your Pet: {pet['pet_name']}", color=discord.Colour.green())
+                    embed.set_thumbnail(url=pet['picture_link'])
+
+                    embed.add_field(name=f"", value=f"**🌟 Level:** {level}", inline=False)
+                    embed.add_field(name=f"", value=f"**❤️ Health:** {pet['currentHP']}/{pet['hp']}", inline=False)
+                    embed.add_field(name=f"", value=f"🥤** Hunger:** {pet['hunger']}/{pet['food']}",
+                                    inline=False)  # Assuming 'food' represents thirst
+                    embed.add_field(name=f"", value=f"**😊 Happiness:** {pet['happiness']}/100",
+                                    inline=False)
+                    embed.add_field(name=f"", value=f"=========================",
+                                    inline=False)
+                    embed.add_field(name=f"", value=f"**⚔️ Attack:** {pet['attack']}", inline=False)
+                    embed.add_field(name=f"", value=f"**🛡️ Defense:** {pet['defense']}", inline=False)
+
+                    await ctx.send(embed=embed)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
+
+    @is_gm()
+    @commands.command()
+    async def egglist(self, ctx):
+        try:
+            async with self.bot.pool.acquire() as conn:
+                # Retrieve the user's egg list with incubation status from the database
+                user_eggs = await conn.fetch(
+                    'SELECT ue.egg_name, ue.id, ie.incubation_end_time '
+                    'FROM user_eggs ue '
+                    'LEFT JOIN incubating_eggs ie ON ue.id = ie.egg_id '
+                    'WHERE ue.user_id = $1;',
+                    ctx.author.id,
+                )
+
+                if not user_eggs:
+                    return await ctx.send(_("You don't own any eggs yet."))
+
+                # Prepare and send a message containing the user's egg list
+                embed = discord.Embed(
+                    title=_("Your Egg List"),
+                    color=discord.Color.blue(),
+                )
+
+                egg_rarities = {
+                    "Common Egg": "<:common_egg:1200370597239201822>",
+                    "Uncommon Egg": "<:uncommon_egg:1200372201359147018>",
+                    "Rare Egg": "<:rare_egg:1200371479490076702>",
+                    "Very Rare Egg": "<:veryrare_egg:1200371709560229979>",
+                    "Legendary Egg": "<:legendary_egg:1200370906552352848>"
+                }
+
+                for egg in user_eggs:
+                    egg_name = egg['egg_name']
+                    egg_id = egg['id']
+                    emoji = egg_rarities.get(egg_name, "")
+                    end_time = egg['incubation_end_time']
+
+                    if end_time:
+                        # Calculate remaining time based on the current time and end_time
+                        current_time = dt.datetime.now(dt.timezone.utc)
+                        remaining_time = int(max(0, (end_time - current_time).total_seconds()))
+
+                        # Format remaining time as HH:MM:SS
+                        hours, remainder = divmod(remaining_time, 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        remaining_time_str = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+
+                        embed.add_field(
+                            name=f"{emoji} {egg_name} (ID: {egg_id})",
+                            value=f"**Incubation Status**: {remaining_time_str}",
+                            inline=False
+                        )
+                    else:
+                        embed.add_field(
+                            name=f"{emoji} {egg_name} (ID: {egg_id})",
+                            value=_("Not incubating"),
+                            inline=False
+                        )
+
+                await ctx.send(embed=embed)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            await ctx.send(_(f"An error occurred while processing your request. {e}"))
 
 
 async def setup(bot):

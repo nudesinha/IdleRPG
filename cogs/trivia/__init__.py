@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import html
 
 from discord.ext import commands
@@ -69,8 +72,8 @@ class Trivia(commands.Cog):
             question = await self.get_question(difficulty)
         except ValueError:
             return await ctx.send(_("Invalid difficulty."))
-        except Exception:
-            return await ctx.send(_("Error generating question."))
+        except Exception as e:  # Catch the exception as e
+            return await ctx.send(_("Error generating question: {error}").format(error=e))  # Send the error message
         if await self.get_response(ctx, question):
             await ctx.send(_("{author}, correct!").format(author=ctx.author.mention))
         else:

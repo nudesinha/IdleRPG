@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import datetime
 
 import discord
@@ -32,17 +35,17 @@ class Valentine(commands.Cog):
         self.bot = bot
 
         self.valentine_items = {
-            "Sword": ["Blade of Affection"],
-            "Shield": ["Love Shield", "Letter of Love"],
-            "Axe": ["Kiss Kiss Chop Chop"],
-            "Scythe": ["'Til Death do us part", "Blade of Cuteness"],
-            "Bow": ["Cupid's Bow", "Lovestruck Crossbow"],
-            "Howlet": ["Lovebird"],
-            "Spear": ["Distant Kisses"],
-            "Wand": ["Mindbender"],
-            "Knife": ["Close Combat Kisses"],
-            "Dagger": ["Thieve's Heart"],
-            "Hammer": ["Heartfelt Bonk"],
+            "Sword": ["Heartstring Slasher", "Romeo's Rapier", "Passion's Point", "Love's Blade"],
+            "Shield": ["Cherub's Charm", "Passionate Parry", "Heart's Haven", "Eternal Embrace"],
+            "Axe": ["Blushing Battleaxe", "Love's Lumberer", "Affection Axe", "Heartcarver"],
+            "Scythe": ["Amore's Harvest", "Fluttering Fury", "Romantic Reaper", "Desire's Edge"],
+            "Bow": ["Amorous Archer", "Heartseeker", "Cupid's Curve", "Love's Longshot"],
+            "Mace": ["Crushin' Club", "Valentine's Vengeance", "Heartbeat Hammer", "Smitten Smasher"],
+            "Spear": ["Cupid's Capture", "Passion's Pike", "Eros' Embrace", "Tender Thrust"],
+            "Wand": ["Enchantment Echo", "Romantic Rapture", "Heartfelt Wand", "Passion Pulse"],
+            "Knife": ["Sweetheart Shiv", "Valentine's Vindicator", "Tenderizer", "Affectionate Assassin"],
+            "Dagger": ["Lover's Lacerator", "Passionate Puncture", "Heart's Piercer", "Desire's Dagger"],
+            "Hammer": ["Affectionate Anvil", "Blissful Bludgeon", "Crushing Crush", "Infatuation Impact"],
         }
 
     def get_valentine_name(self, type_):
@@ -98,7 +101,7 @@ class Valentine(commands.Cog):
 
         prize = random.choice(["money", "item", "lovescore", "lovescore"])
         if prize == "money":
-            money = random.randint(1, 10) * 1000
+            money = random.randint(1, 20) * 2500
             async with self.bot.pool.acquire() as conn:
                 await conn.execute(
                     'UPDATE profile SET "money"="money"+$1 WHERE "user"=$2;',
@@ -109,15 +112,15 @@ class Valentine(commands.Cog):
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": money},
+                    subject="Valentine Event",
+                    data={"Gold": money},
                     conn=conn,
                 )
             return await ctx.send(
                 _("The chocolate box contained **${money}!**").format(money=money)
             )
         elif prize == "lovescore":
-            lovescore = random.randint(5, 10) * 1000
+            lovescore = random.randint(5, 30) * 2500
             await self.bot.pool.execute(
                 'UPDATE profile SET "lovescore"="lovescore"+$1 WHERE "user"=$2;',
                 lovescore,
@@ -134,7 +137,7 @@ class Valentine(commands.Cog):
 
             item = await self.bot.create_random_item(
                 minstat=minstat if minstat < 30 else 30,
-                maxstat=maxstat if maxstat < 30 else 30,
+                maxstat=maxstat if maxstat < 30 else 54,
                 minvalue=1,
                 maxvalue=250,
                 owner=ctx.author,
@@ -148,7 +151,7 @@ class Valentine(commands.Cog):
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="item",
+                    subject="Valentine Item",
                     data={"Name": item["name"], "Value": item["value"]},
                     conn=conn,
                 )

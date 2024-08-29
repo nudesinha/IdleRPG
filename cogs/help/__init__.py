@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 import math
 
@@ -592,7 +595,7 @@ class IdleHelp(commands.HelpCommand):
     async def send_bot_help(self, mapping):
         e = discord.Embed(
             title=_(
-                "IdleRPG Help {version}",
+                "Fable Help {version}",
             ).format(version=self.context.bot.version),
             color=self.context.bot.config.game.primary_colour,
             url="https://idlerpg.xyz/",
@@ -601,17 +604,9 @@ class IdleHelp(commands.HelpCommand):
             name=self.context.bot.user,
             icon_url=self.context.bot.user.display_avatar.url,
         )
-        e.set_image(
-            url="https://media.discordapp.net/attachments/460568954968997890/711740723715637288/idle_banner.png"
-        )
         e.description = _(
-            "**Welcome to the IdleRPG help.**\nCheck out our tutorial!\n-"
-            " https://idlerpg.xyz/tutorial/\nAre you stuck? Ask for help in the support"
-            " server!\n- https://support.idlerpg.xyz/\nDo you need personal help?\n-"
-            " Contact our support team using `{prefix}helpme`.\nWould you like to"
-            " invite me to your server?\n- https://invite.idlerpg.xyz/\n*See"
-            " `{prefix}help [command]` and `{prefix}help module [module]` for more"
-            " info*"
+            "**Welcome to the Fable help.**\nCheck out our tutorial!\n-"
+            " coming soon"
         ).format(prefix=self.context.clean_prefix)
 
         allowed = []

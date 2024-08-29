@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from discord.ext import commands
 
 from classes.converters import IntFromTo
@@ -37,9 +40,8 @@ class Easter(commands.Cog):
         )
         await ctx.send(
             _(
-                "**Easter event <:easteregg:566251086986608650>**\n\nPart of Idle's"
-                " birthday!\nCollect eastereggs and use `{prefix}easter rewards` to"
-                " check the rewards. <:bunny:566290173831151627>\nHappy hunting!"
+                "**Easter event!**\nCollect eastereggs and use `{prefix}easter rewards` to"
+                " check the rewards. 🐰\nHappy hunting!"
             ).format(prefix=ctx.clean_prefix)
         )
 
@@ -58,16 +60,16 @@ class Easter(commands.Cog):
 **Easter event - rewards**
 Use `{prefix}easter reward [1-9]` to trade your eggs in.
 
-**(1) 100 <:easteregg:566251086986608650>** - 10 common crates
-**(2) 500 <:easteregg:566251086986608650>** - $10000
-**(3) 1000 <:easteregg:566251086986608650>** - random item 1-49
-**(4) 2000 <:easteregg:566251086986608650>** - 250 common crates
-**(5) 2500 <:easteregg:566251086986608650>** - 10 boosters of each type
-**(6) 5000 <:easteregg:566251086986608650>** - 10 rare crates
-**(7) 7500 <:easteregg:566251086986608650>** - birthday guild badge
-**(8) 7500 <:easteregg:566251086986608650>** - 1 magic crate
-**(9) 12500 <:easteregg:566251086986608650>** - 1 legendary crate
-You have **{eggs}** <:easteregg:566251086986608650>."""
+**(1) 100 <:eggy:1222275824829333566>** - 10 common crates
+**(2) 500 <:eggy:1222275824829333566>** - $10000
+**(3) 1000 <:eggy:1222275824829333566>** - random item 1-49
+**(4) 2000 <:eggy:1222275824829333566>** - 250 common crates
+**(5) 2500 <:eggy:1222275824829333566>** - 10 boosters of each type
+**(6) 5000 <:eggy:1222275824829333566>** - 10 rare crates
+**(7) 7500 <:eggy:1222275824829333566>** - 1 magic crate
+**(8) 12500 <:eggy:1222275824829333566>** - 1 legendary crate
+**(9) 13000 <:eggy:1222275824829333566>** - 1 fortune crate
+You have **{eggs}** <:eggy:1222275824829333566>."""
             ).format(prefix=ctx.clean_prefix, eggs=ctx.character_data["eastereggs"])
         )
 
@@ -76,7 +78,7 @@ You have **{eggs}** <:easteregg:566251086986608650>."""
     @locale_doc
     async def reward(self, ctx, reward_id: IntFromTo(1, 9)):
         _(
-            """`<reward_id>` - A whole number from 1 to 9
+            """`<reward_id>` - A whole number from 1 to 10
 
             Claim a reward by its ID.
 
@@ -85,13 +87,13 @@ You have **{eggs}** <:easteregg:566251086986608650>."""
         reward = [
             (100, "crates", 10, "common"),
             (500, "money", 10000),
-            (1000, "item", 1, 49),
+            (1000, "item", 1, 55),
             (2000, "crates", 250, "common"),
             (2500, "boosters", 10),
             (5000, "crates", 10, "rare"),
-            (7500, "badge"),
             (7500, "crates", 1, "magic"),
             (12500, "crates", 1, "legendary"),
+            (13000, "crates", 1, "fortune"),
         ][reward_id - 1]
         if ctx.character_data["eastereggs"] < reward[0]:
             return await ctx.send(_("You don't have enough eggs to claim this."))
@@ -109,7 +111,7 @@ You have **{eggs}** <:easteregg:566251086986608650>."""
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="crates",
+                    subject="Easter Reward",
                     data={"Rarity": reward[3], "Amount": reward[2]},
                     conn=conn,
                 )
@@ -126,8 +128,8 @@ You have **{eggs}** <:easteregg:566251086986608650>."""
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": reward[2]},
+                    subject="EasterEgg Event",
+                    data={"Gold": reward[2]},
                     conn=conn,
                 )
         elif reward[1] == "boosters":
@@ -177,7 +179,7 @@ You have **{eggs}** <:easteregg:566251086986608650>."""
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="item",
+                    subject="Easter item",
                     data={"Name": item["name"], "Value": item["value"]},
                     conn=conn,
                 )

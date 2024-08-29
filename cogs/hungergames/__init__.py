@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,10 +16,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 import copy
 
 import discord
+from discord import Embed
 
 from discord.enums import ButtonStyle
 from discord.ext import commands
@@ -26,6 +30,7 @@ from discord.ui.button import Button
 
 from cogs.help import chunks
 from utils import random
+from utils.checks import is_gm
 from utils.i18n import _, locale_doc
 from utils.joins import JoinView
 from utils.misc import nice_join
@@ -245,28 +250,27 @@ class GameBase:
                 self.players.remove(p)
             except ValueError:
                 pass
-        paginator = commands.Paginator(prefix="", suffix="")
+        embed = discord.Embed(title=f"Round {self.round}", color=discord.Color.green())
         for u, a in user_actions:
-            paginator.add_line(f"{u} {a}")
-        for page in paginator.pages:
-            await self.ctx.send(page, delete_after=60)
+            embed.add_field(name=u, value=a, inline=False)
+
+        await self.ctx.send(embed=embed)
         self.round += 1
 
     async def send_cast(self):
         cast = copy.copy(self.players)
-        cast = random.shuffle(cast)
+        random.shuffle(cast)  # note: shuffle works in-place, no need to assign back to cast
         cast = list(chunks(cast, 2))
         self.cast = cast
-        text = _("Team")
-        paginator = commands.Paginator(prefix="", suffix="")
-        paginator.add_line(_("**The cast**"))
+
+        embed = discord.Embed(title="The Cast", color=discord.Color.blue())
         for i, team in enumerate(cast, start=1):
             if len(team) == 2:
-                paginator.add_line(f"{text} #{i}: {team[0].mention} {team[1].mention}")
+                embed.add_field(name=f"Team #{i}", value=f"{team[0].mention} {team[1].mention}", inline=False)
             else:
-                paginator.add_line(f"{text} #{i}: {team[0].mention}")
-        for page in paginator.pages:
-            await self.ctx.send(page)
+                embed.add_field(name=f"Team #{i}", value=f"{team[0].mention}", inline=False)
+
+        await self.ctx.send(embed=embed)
 
     async def main(self):
         self.round = 1
@@ -274,20 +278,53 @@ class GameBase:
         while len(self.players) > 1:
             await self.get_inputs()
             await asyncio.sleep(3)
-        if len(self.players) == 1:
-            await self.ctx.send(
-                _("This hunger game's winner is {winner}!").format(
+
+        try:
+            if len(self.players) == 1:
+                embed = discord.Embed(title="Hunger Games Results", color=0x00FF00)  # Green color
+                embed.description = _("This hunger game's winner is {winner}!").format(
                     winner=self.players[0].mention
                 )
-            )
-        else:
-            await self.ctx.send(_("Everyone died!"))
+                avatar_url = str(self.players[0].avatar) or "https://cdn.discordapp.com/embed/avatars/3.png"
+                embed.set_thumbnail(url=avatar_url)
+            else:
+                embed = discord.Embed(title="Hunger Games Results", color=0xFF0000)  # Red color
+                embed.description = _("Everyone died!")
+                embed.set_thumbnail(
+                    url="https://64.media.tumblr.com/688393f27c7e1bf442a5a0edc81d41b5/ee1cd685d21520b0-f9/s500x750/4237c55e0f8b85cb943f6e7adb5562866a54ff2a.gif")
+
+            await self.ctx.send(embed=embed)
+        except Exception as e:
+            await self.ctx.send(f"An error occurred: {e}")
 
 
 class HungerGames(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.games = {}
+
+    @commands.command(aliases=["fhk"], brief=_("Force Kill hunger games"))
+    @locale_doc
+    @is_gm()
+    async def forcehgkill(self, ctx):
+        if ctx.author.id != 295173706496475136:
+            return await ctx.send("Access Denied")
+
+        file_path = '/home/lunar/Fable/IdleRPG/HungerGames.mp4'
+
+        try:
+            await ctx.send("GIF/MP4 Debug - Selecting Video Format - MP4")
+            await ctx.send("**itslunar.** of **District 12** was killed by a mysterious force.")
+            # Open the file in binary mode and send it as an attachment
+            with open(file_path, 'rb') as file:
+                file_content = discord.File(file)
+                await ctx.send(file=file_content)
+
+
+        except FileNotFoundError:
+            await ctx.send(f"File '{file_path}' not found.")
+        except discord.HTTPException as e:
+            await ctx.send(f"An error occurred while sending the file: {e}")
 
     @commands.command(aliases=["hg"], brief=_("Play the hunger games"))
     @locale_doc

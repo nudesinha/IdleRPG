@@ -1,6 +1,25 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
@@ -34,7 +53,14 @@ items = [
     ("Psycadelic Mushrooms", 408),
     ("Smitten Dandruff", 505),
     ("Cute Kittens", 1337),
+    ("Justin's nut juice", 6969),
+    ("Mochi's Lag", 3200), 
+    ("Nothing's maid outfit", 2222),
+    ("Mia's marshmallow", 6299),
+    ("Kyo's failed tails flip",1111),
+    ("Donny's yellow blob", 1010),
     ("Lots Of Cats", 7331),
+    ("Alma's tomes of knowledge", 8888),
     ("Wine Bottle", 105),
     ("Random Sheep", 375),
     ("Golden Nugget", 1009),
@@ -58,6 +84,7 @@ items = [
     ("Saber Fang", 1016),
     ("Lion Tooth", 503),
     ("Dragon Claw", 5996),
+    ("Raven's tarot cards", 4444),
     ("Spirits", 7995),
     ("Phoenix Feather", 1024),
     ("Cursed Parrot", 1464),
@@ -117,7 +144,7 @@ items = [
     ("Yandel Guide Of The Wind", 603),
     ("Adrian's Sweat", 6666),
     ("Goat's Heart", 201),
-    ("Essence Of Adrian", 10000),
+    ("MIke Myers Starring Shrek From The Hit Movie: Shrek 2", 10000),
     ("Smooth Rock", 153),
     ("Maiden Hair", 181),
     ("Broken Branch", 103),
@@ -168,7 +195,45 @@ items = [
     ("Iron Ingot", 507),
     ("Hand Guard", 704),
     ("Toilet Paper", 9999),
+    ("Salah's cat meme collection", 8500),
+    ("Niry's chocomqte milk", 5500),
+    ("Gilson's crack", 2500),
+    ("Turin's shower head", 6500),
+    ("Franz's foot porn collection", 3000),
+    ("Alice’s stacked deck of UNO cards", 7000),
+    ("Enslaved Parker", 4500),
+    ("Zoe's thirst traps", 9000),
+    ("Glitter's red bull", 4500),
+    ("Jazzy's imprisoned Sterling", 7000),
+    ("Tatsu’s tiny house", 8500),
+    ("Stalker's cheese", 4500),
+    ("Arthur's whole collection of torchy blane films", 3000),
+    ("Swoozie's blood diamonds", 5500),
+    ("Siggy’s nudes", 2500),
+    ("Ling’s seggs tapes", 5000),
+    ("A handful of Kaelyn's Madagascar hissing cockroaches", 4000),
+    ("Aaron's indian restaurant", 8500),
+    ("Pepe's stickers", 6500),
+    ("Nasos' greek yogurt", 8500),
+    ("Alpha's photographs", 9000),
+    ("Marti’s Nespresso", 7000),
+    ("Kai’s cricket tacos", 3500),
+    ("Honey's Cat Theo", 2500),
+    ("William's soul (what's left of it)", 6000),
+    ("Raven’s Bathrobe", 5000),
+    ("Addi's writing", 9000),
+    ("Tylin's litterbox", 3000),
+    ("Strain of Looch's ginger hair", 5000),
+    ("Carrot's epic log", 4500),
+    ("Sid's unread sent DMs", 7000),
+    ("Lunar's VRC porn", 8000),
+    ("Zhu’s BJ profits", 4500),
+    ("Robbery's Baklava", 3500),
+    ("Orca's Killer Whale", 6500),
 ]
+
+# The combined list contains all the items from both lists
+
 
 
 def get_item() -> dict[str, str | int]:

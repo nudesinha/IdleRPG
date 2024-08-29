@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,9 +16,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from contextlib import suppress
+from datetime import datetime
 
 import discord
+from discord import Embed
 
 from discord.ext import commands
 
@@ -33,7 +38,7 @@ class Halloween(commands.Cog):
         self.waiting = None
 
     @checks.has_char()
-    @user_cooldown(10800)
+    @user_cooldown(3600)
     @commands.command(aliases=["tot"], brief=_("Trick or treat!"))
     @locale_doc
     async def trickortreat(self, ctx):
@@ -56,7 +61,7 @@ class Halloween(commands.Cog):
             )
         self.waiting = None
         async with self.bot.pool.acquire() as conn:
-            if random.randint(0, 1) == 1:
+            if random.randint(0, 2) <= 1:
                 await ctx.send(
                     _(
                         "You walk around the houses and ring at {waiting}'s house!"
@@ -95,8 +100,7 @@ class Halloween(commands.Cog):
 
             if random.randint(1, 100) < 5:
                 backgrounds = [
-                    "https://i.imgur.com/29i7ZJN.png",
-                    "https://i.imgur.com/hzn0zVV.png",
+                    "https://i.ibb.co/wJ43ybH/totbg.png",
                 ]
                 background = random.choice(backgrounds)
                 current_backgrounds = await conn.fetchval(
@@ -115,6 +119,375 @@ class Halloween(commands.Cog):
                             prefix=ctx.clean_prefix,
                         )
                     )
+
+    @checks.has_char()
+    @commands.group(aliases=["ss"], brief=_("Opens Special Halloween Shop"))
+    @locale_doc
+    async def spookyshop(self, ctx):
+        """
+        Dive into the spectral realm with our limited-time Spooky Season Shop.
+        Unearth rare treasures using bones you've collected from various eerie events.
+        """
+        if ctx.invoked_subcommand is None:
+            qualtity_shop = await self.bot.pool.fetchrow(
+                '''
+                SELECT ssuncommon, sstot, sstoken, ssmagic, ssrare, sslegendary, ssclass, ssbg 
+                FROM profile WHERE "user"=$1;
+                ''',
+                ctx.author.id
+            )
+
+            ssuncommon_value = qualtity_shop['ssuncommon']
+            sstot_value = qualtity_shop['sstot']
+            sstoken_value = qualtity_shop['sstoken']
+            ssmagic_value = qualtity_shop['ssmagic']
+            ssrare_value = qualtity_shop['ssrare']
+            sslegendary_value = qualtity_shop['sslegendary']
+            ssclass_value = qualtity_shop['ssclass']
+            ssbg_value = qualtity_shop['ssbg']
+
+            try:
+                # Fetch the user's bone count
+                bone_count = await self.get_bone_count(ctx.author.id)
+
+                # Create the embed with various enhancements
+                embed = Embed(title=_("👻 Halloween Shop 👻"), color=0xff4500)  # Dark orange color
+
+                embed.set_thumbnail(url="https://i.ibb.co/sqWxZ6F/shop.jpg")
+                embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url)
+
+                items = [
+                    ("<:F_uncommon:1139514875828252702> Uncommon Crate", 40, ssuncommon_value),
+                    ("<:F_rare:1139514880517484666> Rare Crate", 100, ssrare_value),
+                    ("<:F_Magic:1139514865174720532> Magic Crate", 500, ssmagic_value),
+                    ("<:F_Legendary:1139514868400132116> Legendary Crate", 3000, sslegendary_value),
+                    ("🖼️ Seasonal Background", 650, ssbg_value),
+                    ("🧙 Seasonal Class", 1000, ssclass_value),
+                    ("🟡 Weapon Type Token", 200, sstoken_value),
+                    ("🛍️ 3 Trick or Treat Bags", 200, sstot_value)
+                ]
+
+                for idx, (name, cost, quantity) in enumerate(items, 1):
+                    if ctx.author.id == 708435868842459169:
+                        embed.add_field(name=f"{idx}:  {name}",
+                                        value=_("Cost: {} Boners - {} available").format(cost, quantity), inline=False)
+
+                        embed.set_footer(text=_("You have {} boners 💀 - $ss buy <ID> to buy.").format(bone_count),
+                                         icon_url="https://i.ibb.co/5GK1Ry0/vecteezy-skeleton-halloween-cartoon-colored-clipart-8823016-removebg-preview.png")
+
+                    else:
+                        embed.add_field(name=f"{idx}:  {name}",
+                                        value=_("Cost: {} Bones - {} available").format(cost, quantity), inline=False)
+
+                        embed.set_footer(text=_("You have {} bones 💀 - $ss buy <ID> to buy.").format(bone_count),
+                                         icon_url="https://i.ibb.co/5GK1Ry0/vecteezy-skeleton-halloween-cartoon-colored-clipart-8823016-removebg-preview.png")
+
+                await ctx.send(embed=embed)
+
+            except Exception as e:
+                error_embed = Embed(title=_("🚫 An error occurred!"), description=_(
+                    f"Oh no! Something spooky happened. Try again later or contact our wizard for help. {e}"),
+                                    color=0xff0000)  # Red color for errors
+                await ctx.send(embed=error_embed)
+
+    @spookyshop.command(name="buy")
+    @user_cooldown(30)
+    async def _buy(self, ctx, item: int, quantity: int = 1):
+        _("""
+        This subcommand allows the user to buy an item from the Spooky Shop.
+
+        :param item_name: The name of the item the user wants to buy.
+        :param quantity: The quantity of the item the user wants to buy. Defaults to 1.
+        """)
+
+        if item < 0 and item > 8:
+            await ctx.send("Invalid choice")
+            return
+
+        record = await self.bot.pool.fetchrow(
+            'SELECT bones FROM profile WHERE "user"=$1;',
+            ctx.author.id
+        )
+        if record:
+            bones_count = record['bones']
+        else:
+            bones_count = 0
+
+        if item == 1:
+            if bones_count < 40:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT ssuncommon FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['ssuncommon']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssuncommon = ssuncommon - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 40 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET crates_uncommon = crates_uncommon + 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased a <:F_uncommon:1139514875828252702> for 40 Bones!")
+
+        if item == 2:
+            if bones_count < 100:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT ssrare FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['ssrare']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssrare = ssrare - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 100 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET crates_rare = crates_rare + 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased a <:F_rare:1139514880517484666> for 100 Bones!")
+
+        if item == 3:
+            if bones_count < 500:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT ssmagic FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['ssmagic']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssmagic = ssmagic - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 500 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET crates_magic = crates_magic + 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased a <:F_Magic:1139514865174720532> for 500 Bones!")
+
+        if item == 4:
+            if bones_count < 3000:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT sslegendary FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['sslegendary']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET sslegendary = sslegendary - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 3000 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET crates_legendary = crates_legendary + 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased a <:F_Legendary:1139514868400132116> for 3000 Bones!")
+
+        if item == 5:
+            if bones_count < 650:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT ssbg FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['ssbg']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssbg = ssbg - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 650 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssbg1 = true WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            backgrounds = [
+                "https://i.ibb.co/FmwWpF4/ssbg.png",
+            ]
+            async with self.bot.pool.acquire() as conn:
+                background = random.choice(backgrounds)
+                current_backgrounds = await conn.fetchval(
+                    'SELECT "backgrounds" FROM profile WHERE "user"=$1;', ctx.author.id
+                )
+                if current_backgrounds is None or background not in current_backgrounds:
+                    await conn.execute(
+                        'UPDATE profile SET "backgrounds"=array_append("backgrounds", $1) WHERE "user"=$2;',
+                        background,
+                        ctx.author.id,
+                    )
+
+            await ctx.send("You have successfully purchased a Seasonal Background for 650 Bones!")
+            await ctx.send("You can find it in $eventbackgrounds")
+
+        if item == 6:
+            if bones_count < 1000:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT ssclass FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['ssclass']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET ssclass = ssclass - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 1000 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET spookyclass = true WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased the Seasonal Class for 1000 Bones!")
+            await ctx.send("You can find it in $class")
+
+        if item == 7:
+            if bones_count < 200:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT sstoken FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['sstoken']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET sstoken = sstoken - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 200 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET weapontoken = weapontoken + 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased a Weapon Type token for 200 Bones!")
+
+        if item == 8:
+            if bones_count < 200:
+                await ctx.send("You cannot afford this")
+                return
+            item1 = await self.bot.pool.fetchrow(
+                'SELECT sstot FROM profile WHERE "user"=$1;',
+                ctx.author.id
+            )
+            quantity = item1['sstot']
+            if quantity <= 0:
+                await ctx.send("You cannot purchase this: Sold Out!")
+                return
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET sstot = sstot - 1 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET bones = bones - 200 WHERE "user"=$1;',
+                ctx.author.id
+            )
+
+            await self.bot.pool.execute(
+                'UPDATE profile SET trickortreat = trickortreat + 3 WHERE "user"=$1;',
+                ctx.author.id
+            )
+            await ctx.send("You have successfully purchased 3 Trick or Treat bags for 200 Bones!")
+
+    async def get_bone_count(self, user_id):
+        """Get the user's bone count from the database."""
+        record = await self.bot.pool.fetchrow(
+            'SELECT bones FROM profile WHERE "user"=$1;',
+            user_id
+        )
+        if record:
+            return record['bones']
+        return 0
+
+    @spookyshop.command(name="bal")
+    async def _bal(self, ctx):
+
+        record = await self.bot.pool.fetchrow(
+            'SELECT bones FROM profile WHERE "user"=$1;',
+            ctx.author.id
+        )
+        if record:
+            bones_count = record['bones']
+        else:
+            bones_count = 0
+        if ctx.author.id == 708435868842459169:
+            await ctx.send(f"You currently have **{bones_count}** Boners, {ctx.author.mention}!")
+        else:
+            await ctx.send(f"You currently have **{bones_count}** Bones, {ctx.author.mention}!")
 
     @checks.has_char()
     @commands.command(brief=_("Open a trick or treat bag"))
@@ -158,15 +531,55 @@ class Halloween(commands.Cog):
                 "Skeletal",
                 "Glowing",
                 "Moonlight",
-                "Adrian's really awesome",
+                "Greg's really awesome",
                 "Ghost Buster's",
                 "Ghoulish",
                 "Vampiric",
                 "Living",
                 "Undead",
                 "Glooming",
+                "Witching",
+                "Haunted",
+                "Mystical",
+                "Eerie",
+                "Shadowy",
+                "Graveyard",
+                "Midnight",
+                "Cursed",
+                "Phantom",
+                "Cobwebbed",
+                "Hallowed",
+                "Mournful",
+                "Wicked",
+                "Foggy",
+                "Cryptic",
+                "Petrifying",
+                "Twilight",
+                "Dreadful",
+                "Bat's",
+                "Zombie's",
+                "Lurking",
+                "Banshee's",
+                "Ominous",
+                "Spectral",
+                "Webbed",
+                "Lycanthropic",
+                "Decaying",
+                "Silent",
+                "Darkness",
+                "Bloodmoon",
+                "Chilling",
+                "Shrieking",
+                "Possessed",
+                "Enchanted",
+                "Deathly",
+                "Nocturnal",
+                "Ritualistic",
+                "Howling",
+                "Black Cat's"
             ]
         )
+
         item["name"] = f"{name} {item['type_']}"
         async with self.bot.pool.acquire() as conn:
             await self.bot.create_item(**item, conn=conn)
@@ -181,6 +594,7 @@ class Halloween(commands.Cog):
         )
         embed.set_thumbnail(url=ctx.author.display_avatar.url)
         embed.add_field(name=_("Name"), value=item["name"], inline=False)
+        embed.add_field(name=_("Element"), value=item["element"], inline=False)
         embed.add_field(name=_("Type"), value=item["type_"], inline=False)
         embed.add_field(name=_("Damage"), value=item["damage"], inline=True)
         embed.add_field(name=_("Armor"), value=item["armor"], inline=True)

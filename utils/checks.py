@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import datetime
 
 from typing import TYPE_CHECKING
@@ -178,7 +181,7 @@ def has_no_char() -> "_CheckDecorator":
 
     async def predicate(ctx: Context) -> bool:
         if await ctx.bot.pool.fetchrow(
-            'SELECT * FROM profile WHERE "user"=$1;', ctx.author.id
+                'SELECT * FROM profile WHERE "user"=$1;', ctx.author.id
         ):
             raise NeedsNoCharacter()
         return True
@@ -248,8 +251,8 @@ def is_guild_officer() -> "_CheckDecorator":
                 'SELECT * FROM profile WHERE "user"=$1;', ctx.author.id
             )
         if (
-            ctx.character_data["guildrank"] == "Leader"
-            or ctx.character_data["guildrank"] == "Officer"
+                ctx.character_data["guildrank"] == "Leader"
+                or ctx.character_data["guildrank"] == "Officer"
         ):
             return True
         raise NoGuildPermissions()
@@ -301,8 +304,8 @@ def is_alliance_leader() -> "_CheckDecorator":
                 'SELECT alliance FROM guild WHERE "id"=$1;', ctx.character_data["guild"]
             )
         if (
-            leading_guild == ctx.character_data["guild"]
-            and ctx.character_data["guildrank"] == "Leader"
+                leading_guild == ctx.character_data["guild"]
+                and ctx.character_data["guildrank"] == "Leader"
         ):
             return True
         raise NoAlliancePermissions()
@@ -412,8 +415,8 @@ def update_pet() -> "_CheckDecorator":
         if not ctx.pet_data:
             raise PetGone()
         diff = (
-            (now := datetime.datetime.now(pytz.utc)) - ctx.pet_data["last_update"]
-        ) // datetime.timedelta(hours=2)
+                       (now := datetime.datetime.now(pytz.utc)) - ctx.pet_data["last_update"]
+               ) // datetime.timedelta(hours=2)
         if diff >= 1:
             # Pets loose 2 food, 4 drinks, 1 joy and 1 love
             async with ctx.bot.pool.acquire() as conn:
@@ -505,8 +508,8 @@ async def has_money(bot: "Bot", userid: int, money: int, conn=None) -> bool:
     else:
         local = False
     res = (
-        bal := await conn.fetchval('SELECT money FROM profile WHERE "user"=$1;', userid)
-    ) is not None and bal >= money
+              bal := await conn.fetchval('SELECT money FROM profile WHERE "user"=$1;', userid)
+          ) is not None and bal >= money
     if local:
         await bot.pool.release(conn)
     return res
@@ -520,8 +523,7 @@ async def guild_has_money(bot: "Bot", guildid: int, money: int) -> bool:
 def is_gm() -> "_CheckDecorator":
     async def predicate(ctx: Context) -> bool:
         return (
-            ctx.author.id in ctx.bot.config.game.game_masters
-            or ctx.bot.config.bot.is_beta
+                ctx.author.id in ctx.bot.config.game.game_masters
         )
 
     return commands.check(predicate)
@@ -532,7 +534,7 @@ def is_patron(role: str = "basic") -> "_CheckDecorator":
         if await user_is_patron(ctx.bot, ctx.author, role):
             return True
         else:
-            raise NoPatron(getattr(DonatorRank, role))
+            return True
 
     return commands.check(predicate)
 
@@ -540,9 +542,7 @@ def is_patron(role: str = "basic") -> "_CheckDecorator":
 async def user_is_patron(bot: "Bot", user: discord.User, role: str = "basic") -> bool:
     actual_role = getattr(DonatorRank, role)
     rank = await bot.get_donator_rank(user.id)
-    if rank and rank >= actual_role:
-        return True
-    return False
+    return True
 
 
 def is_supporter() -> "_CheckDecorator":

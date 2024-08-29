@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 import datetime
 import logging
@@ -33,10 +36,12 @@ from discord import AllowedMentions
 from discord.ext import commands
 from discord.ext.commands.cooldowns import BucketType
 from discord.http import handle_message_parameters
+from json import JSONDecoder, JSONEncoder
+
 from redis import asyncio as aioredis
 
 from classes.bucket_cooldown import Cooldown, CooldownMapping
-from classes.classes import Mage, Paragon, Raider, Ranger, Ritualist, Thief, Warrior
+from classes.classes import Mage, Paragon, Raider, Ranger, Ritualist, Thief, Warrior, Paladin, Reaper
 from classes.classes import from_string as class_from_string
 from classes.context import Context
 from classes.enums import DonatorRank
@@ -77,9 +82,10 @@ class Bot(commands.AutoShardedBot):
         self.support_server_id = self.config.game.support_server_id
         self.linecount = 0
         self.make_linecount()
+
         self.all_prefixes = {}
         self.activity = discord.Game(
-            name=f"IdleRPG v{self.version}"
+            name=f"Fable v{self.version}"
             if self.config.bot.is_beta
             else self.BASE_URL
         )
@@ -99,6 +105,8 @@ class Bot(commands.AutoShardedBot):
         self.donator_cooldown = CooldownMapping(
             Cooldown(3, 3, 1, 2, commands.BucketType.user)
         )
+
+
 
     def __repr__(self):
         return "<Bot>"
@@ -156,7 +164,7 @@ class Bot(commands.AutoShardedBot):
         if proxy_url is None:
             self.session = aiohttp.ClientSession()
         else:
-            self.session = ProxiedClientSession(proxy_url=proxy_url)
+            self.session = aiohttp.ClientSession()
         self.trusted_session = aiohttp.ClientSession()
         pool = aioredis.ConnectionPool.from_url(
             f"redis://{self.config.database.redis_host}:{self.config.database.redis_port}/{self.config.database.redis_database}",
@@ -184,6 +192,7 @@ class Bot(commands.AutoShardedBot):
         self.redis_version = await self.get_redis_version()
         await self.load_bans()
 
+
     async def get_redis_version(self):
         """Parses the Redis version out of the INFO command"""
         info = await self.redis.execute_command("INFO")
@@ -194,6 +203,8 @@ class Bot(commands.AutoShardedBot):
         return user_id not in self.bans
 
     async def process_commands(self, message: discord.Message) -> None:
+        if message.author.id in self.bans:
+            return
         if message.author.bot:
             return
 
@@ -245,10 +256,78 @@ class Bot(commands.AutoShardedBot):
         classes=None,
         race=None,
         guild=None,
+        statatk=None,
+        statdef=None,
         god=None,
         conn=None,
     ):
         """Generates the raidstats for a user"""
+        v = thing.id if isinstance(thing, (discord.Member, discord.User)) else thing
+        local = False
+        if conn is None:
+            conn = await self.pool.acquire()
+            local = True
+        if (
+            atkmultiply is None
+            or defmultiply is None
+            or classes is None
+            or guild is None
+            or statatk is None
+            or statdef is None
+        ):
+            row = await conn.fetchrow('SELECT * FROM profile WHERE "user"=$1;', v)
+            atkmultiply, defmultiply, classes, race, guild, user_god, statatk, statdef = (
+                row["atkmultiply"],
+                row["defmultiply"],
+                row["class"],
+                row["race"],
+                row["guild"],
+                row["god"],
+                row["statatk"],
+                row["statdef"],
+            )
+            if god is not None and god != user_god:
+                raise ValueError()
+        damage, armor = await self.get_damage_armor_for(
+            v, classes=classes, race=race, conn=conn
+        )
+        if buildings := await self.get_city_buildings(guild, conn=conn):
+            atkmultiply += buildings["raid_building"] * Decimal("0.1")
+            defmultiply += buildings["raid_building"] * Decimal("0.1")
+        classes = [class_from_string(c) for c in classes]
+
+        statatk = Decimal(statatk)
+        statdef = Decimal(statdef)
+
+        # Now perform the operation with all Decimal components
+
+        atkmultiply += statatk * Decimal('0.1')
+        defmultiply += statdef * Decimal('0.1')
+
+        #for c in classes:
+            #if c and c.in_class_line(Raider):
+                #grade = c.class_grade()
+                #atkmultiply = atkmultiply + Decimal("0.1") * grade
+                #defmultiply = defmultiply + Decimal("0.1") * grade
+        dmg = damage * atkmultiply
+        deff = armor * defmultiply
+        if local:
+            await self.pool.release(conn)
+        return dmg, deff
+
+    async def get_raidstatsjug(
+        self,
+        thing,
+        atkmultiply=None,
+        defmultiply=None,
+        classes=None,
+        race=None,
+        guild=None,
+        god=None,
+        conn=None,
+    ):
+        """Generates the raidstats for a user"""
+        from cogs.tournament import Tournament
         v = thing.id if isinstance(thing, (discord.Member, discord.User)) else thing
         local = False
         if conn is None:
@@ -283,6 +362,12 @@ class Bot(commands.AutoShardedBot):
                 grade = c.class_grade()
                 atkmultiply = atkmultiply + Decimal("0.1") * grade
                 defmultiply = defmultiply + Decimal("0.1") * grade
+        tournament_instance = Tournament(self)
+        dmgbuff = tournament_instance.get_dmgbuff()
+        deffbuff = tournament_instance.get_deffbuff()
+
+        atkmultiply = atkmultiply + dmgbuff
+        defmultiply = defmultiply + deffbuff
         dmg = damage * atkmultiply
         deff = armor * defmultiply
         if local:
@@ -423,7 +508,7 @@ class Bot(commands.AutoShardedBot):
         """Sends a user on an adventure"""
         user = user.id if isinstance(user, (discord.User, discord.Member)) else user
         await self.redis.execute_command(
-            "SET", f"adv:{user}", number, "EX", int(time.total_seconds()) + 259_200
+            "SET", f"adv:{user}", number, "EX", int(time.total_seconds()) + 15_552_000
         )  # +3 days
 
     async def get_adventure(self, user):
@@ -433,7 +518,7 @@ class Bot(commands.AutoShardedBot):
         if ttl == -2:
             return
         num = await self.redis.execute_command("GET", f"adv:{user}")
-        ttl = ttl - 259_200
+        ttl = ttl - 15_552_000
         done = ttl <= 0
         time = datetime.timedelta(seconds=ttl)
         return int(num.decode("ascii")), time, done
@@ -506,7 +591,7 @@ class Bot(commands.AutoShardedBot):
         await self.redis.execute_command("DEL", f"guildadv:{guild}")
 
     async def create_item(
-        self, name, value, type_, damage, armor, owner, hand, equipped=False, conn=None
+        self, name, value, type_, damage, armor, owner, hand, element, equipped=False, conn=None
     ):
         owner = owner.id if isinstance(owner, (discord.User, discord.Member)) else owner
         if conn is None:
@@ -516,7 +601,7 @@ class Bot(commands.AutoShardedBot):
             local = False
         item = await conn.fetchrow(
             'INSERT INTO allitems ("owner", "name", "value", "type", "damage",'
-            ' "armor", "hand") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;',
+            ' "armor", "hand", "element") VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;',
             owner,
             name,
             value,
@@ -524,6 +609,7 @@ class Bot(commands.AutoShardedBot):
             damage,
             armor,
             hand,
+            element,
         )
         await conn.execute(
             'INSERT INTO inventory ("item", "equipped") VALUES ($1, $2);',
@@ -537,6 +623,19 @@ class Bot(commands.AutoShardedBot):
     async def create_random_item(
         self, minstat, maxstat, minvalue, maxvalue, owner, insert=True, conn=None
     ):
+        elements = [
+            "Light",
+            "Dark",
+            "Corrupted",
+            "Fire",
+            "Water",
+            "Electric",
+            "Nature",
+            "Wind"
+        ]
+
+        # Randomly select an element
+        element = random.choice(elements)
         owner = owner.id if isinstance(owner, (discord.User, discord.Member)) else owner
         item = {}
         item["owner"] = owner
@@ -550,8 +649,10 @@ class Bot(commands.AutoShardedBot):
         item["armor"] = (
             random.randint(minstat, maxstat) if type_ == ItemType.Shield else 0
         )
+        item["element"] = element
         item["value"] = random.randint(minvalue, maxvalue)
         item["name"] = fn.weapon_name(type_.value)
+
         if hand == Hand.Both:
             item["damage"] = round(
                 item["damage"] * 2
@@ -571,6 +672,15 @@ class Bot(commands.AutoShardedBot):
             local = True
         else:
             local = False
+        reward_text = ""
+        stat_point_received = False
+        if new_level % 2 == 0 and new_level > 0:
+            # Increment statpoints directly in the database and fetch the updated value
+            update_query = 'UPDATE profile SET "statpoints" = "statpoints" + 1 WHERE "user" = $1 RETURNING "statpoints";'
+            new_statpoints = await conn.fetchval(update_query, ctx.author.id)
+            reward_text += f"You also received **1 stat point** (total: {new_statpoints}). "
+            stat_point_received = True
+
         if (reward := random.choice(["crates", "money", "item"])) == "crates":
             if new_level < 6:
                 column = "crates_common"
@@ -605,7 +715,7 @@ class Bot(commands.AutoShardedBot):
                 ctx.author.id,
             )
         elif reward == "item":
-            stat = round(new_level * 1.5)
+            stat = min(round(new_level * 1.5), 75)
             item = await self.create_random_item(
                 minstat=stat,
                 maxstat=stat,
@@ -615,6 +725,7 @@ class Bot(commands.AutoShardedBot):
                 insert=False,
                 conn=conn,
             )
+
             item["name"] = _("Level {new_level} Memorial").format(new_level=new_level)
             reward_text = _("a special weapon")
             await self.create_item(**item)
@@ -622,7 +733,7 @@ class Bot(commands.AutoShardedBot):
                 ctx,
                 from_=1,
                 to=ctx.author.id,
-                subject="item",
+                subject="Memorial Item",
                 data={"Name": item["name"], "Value": 1000},
                 conn=conn,
             )
@@ -637,8 +748,8 @@ class Bot(commands.AutoShardedBot):
                 ctx,
                 from_=1,
                 to=ctx.author.id,
-                subject="money",
-                data={"Amount": money},
+                subject="Level Up!",
+                data={"Gold": money},
                 conn=conn,
             )
             reward_text = f"**${money}**"
@@ -656,8 +767,8 @@ class Bot(commands.AutoShardedBot):
 
         await ctx.send(
             _(
-                "You reached a new level: **{new_level}** :star:! You received {reward}"
-                " as a reward :tada:! {additional}"
+                "You reached a new level: **{new_level}** :star:! You received {reward} "
+                "as a reward :tada:! {additional}"
             ).format(new_level=new_level, reward=reward_text, additional=additional)
         )
 
@@ -668,8 +779,8 @@ class Bot(commands.AutoShardedBot):
         )
 
     async def load_bans(self):
-        bans = await self.pool.fetch('SELECT "user" FROM bans;')
-        self.bans = {ban["user"] for ban in bans}
+        bans = await self.pool.fetch('SELECT "user_id" FROM bans;')
+        self.bans = {ban["user_id"] for ban in bans}
         self.logger.info(f"Loaded {len(self.bans)} bans")
 
     async def reload_bans(self):
@@ -720,6 +831,8 @@ class Bot(commands.AutoShardedBot):
         is_warrior = any(c.in_class_line(Warrior) for c in classes)
         is_thief = any(c.in_class_line(Thief) for c in classes)
         is_raider = any(c.in_class_line(Raider) for c in classes)
+        is_paladin = any(c.in_class_line(Paladin) for c in classes)
+        is_reaper = any(c.in_class_line(Reaper) for c in classes)
         is_caster = any(
             c.in_class_line(Mage) or c.in_class_line(Ritualist) for c in classes
         )
@@ -741,6 +854,10 @@ class Bot(commands.AutoShardedBot):
                 damage += 5
             elif type_ == ItemType.Axe and is_raider:
                 damage += 5
+            elif type_ == ItemType.Hammer and is_paladin:
+                damage += 5
+            elif type_ == ItemType.Scythe and is_reaper:
+                damage += 10
 
         lines = [class_.get_class_line() for class_ in classes]
         grades = [class_.class_grade() for class_ in classes]
@@ -765,6 +882,9 @@ class Bot(commands.AutoShardedBot):
             armor += 4
         elif race == "Jikill":
             damage += 4
+        elif race == "Shadeborn":
+            damage += -1
+            armor += 5
         return damage, armor
 
     async def log_transaction(self, ctx, from_, to, subject, data, conn=None):
@@ -798,31 +918,36 @@ class Bot(commands.AutoShardedBot):
         }
         from_readable = from_ if from_ not in id_map else id_map[from_]
         to_readable = to if to not in id_map else id_map[to]
-        data_ = "\n".join(
-            [f"{name}: {content}" for name, content in data.items()]
-        )  # data is expected to be a dict
+
+        # Convert data dictionary to a string representation
+        data_ = "\n".join([f"{name}: {content}" for name, content in data.items()])
 
         description = f"""\
-From: {from_readable}
-To: {to_readable}
-Subject: {subject}
-Command: {ctx.command.qualified_name}
-{data_}"""
+        From: {from_readable}
+        To: {to_readable}
+        Subject: {subject}
+        Command: {ctx.command.qualified_name}
+        Data: {data_}
+        """
 
         if conn is None:
             conn = await self.pool.acquire()
             local = True
         else:
             local = False
-        await conn.execute(
-            'INSERT INTO transactions ("from", "to", "subject", "info",'
-            ' "timestamp") VALUES ($1, $2, $3, $4, $5);',
-            from_,
-            to,
-            subject,
-            description,
-            timestamp,
-        )
+        try:
+            await conn.execute(
+                'INSERT INTO transactions ("from", "to", "subject", "info", "data", "timestamp") VALUES ($1, $2, $3, $4, '
+                '$5, $6);',
+                from_,
+                to,
+                subject,
+                description,
+                data_,
+                timestamp,
+            )
+        except Exception as e:
+            await ctx.send(e)
         if subject == "shop":
             await conn.execute(
                 'INSERT INTO market_history ("item", "name", "value", "type",'

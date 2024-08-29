@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 
 from collections import defaultdict
@@ -183,6 +186,9 @@ class Transaction(commands.Cog):
                     "rare": 0,
                     "magic": 0,
                     "legendary": 0,
+                    "mystery": 0,
+                    "fortune": 0,
+                    "divine": 0,
                 }
                 normalized_crates_user1 = all_crate_rarities | user1_gives["crates"]
                 normalized_crates_user2 = all_crate_rarities | user2_gives["crates"]

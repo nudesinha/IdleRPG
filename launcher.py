@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 from __future__ import annotations
 
 import sys
@@ -50,11 +53,11 @@ payload = {
 }
 
 if config.bot.is_custom:
-    GATEWAY_URL = "https://discord.com/api/gateway/bot"
-    APPLICATION_URL = "https://discord.com/api/oauth2/applications/@me"
-else:
     GATEWAY_URL = "http://localhost:5113/api/gateway/bot"
     APPLICATION_URL = "http://localhost:5113/api/oauth2/applications/@me"
+else:
+    GATEWAY_URL = "https://discord.com/api/gateway/bot"
+    APPLICATION_URL = "https://discord.com/api/oauth2/applications/@me"
 
 
 async def get_gateway_info() -> int:
@@ -291,7 +294,9 @@ class Main:
 
 if __name__ == "__main__":
     try:
-        with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
-            runner.run(Main().launch())
+        import uvloop
+        asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())  # Use uvloop as the event loop
+        asyncio.run(Main().launch())
     except KeyboardInterrupt:
         pass
+

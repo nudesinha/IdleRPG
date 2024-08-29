@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+
 import asyncio
 
 import discord
@@ -232,6 +235,18 @@ class Marriage(commands.Cog):
 
             Only players who are married can use this command."""
         )
+        lovescore_multiplier = 1
+
+        query = '''
+            SELECT "user", "tier"
+            FROM profile
+            WHERE "user" = $1 AND "tier" >= $2;
+        '''
+
+        result = await self.bot.pool.fetchrow(query, ctx.author.id, 3)
+
+        if result:
+            lovescore_multiplier = 1
         items = [
             (_("Dog :dog2:"), 50),
             (_("Cat :cat2:"), 50),
@@ -294,7 +309,7 @@ class Marriage(commands.Cog):
         async with self.bot.pool.acquire() as conn:
             await conn.execute(
                 'UPDATE profile SET "lovescore"="lovescore"+$1 WHERE "user"=$2;',
-                item[1],
+                round(item[1] * lovescore_multiplier),
                 ctx.character_data["marriage"],
             )
             await conn.execute(
@@ -306,15 +321,15 @@ class Marriage(commands.Cog):
                 ctx,
                 from_=ctx.author.id,
                 to=2,
-                subject="money",
-                data={"Amount": item[1]},
+                subject="spoil",
+                data={"Gold": item[1]},
                 conn=conn,
             )
         await ctx.send(
             _(
                 "You bought a **{item}** for your partner and increased their love"
                 " score by **{points}** points!"
-            ).format(item=item[0], points=item[1])
+            ).format(item=item[0], points=round(item[1] * lovescore_multiplier))
         )
         user = await self.bot.get_user_global(ctx.character_data["marriage"])
         if not user:
@@ -341,7 +356,10 @@ class Marriage(commands.Cog):
             Only players who are married can use this command.
             (This command has a cooldown of 12 hours.)"""
         )
-        num = random.randint(1, 15) * 10
+        if ctx.author.id == 292893909384822786:
+            num = random.randint(1, 100) * 10
+
+        num = random.randint(50, 600) * 10
         marriage = ctx.character_data["marriage"]
         if not marriage:
             await self.bot.reset_cooldown(ctx)
@@ -628,11 +646,11 @@ class Marriage(commands.Cog):
         target = random.choice(children)
         event = random.choice(
             ["death"]
-            + ["age"] * 8
+            + ["age"] * 6
             + ["namechange"] * 4
             + ["crate"] * 2
-            + ["moneylose"] * 4
-            + ["moneygain"] * 4
+            + ["moneylose"] * 5
+            + ["moneygain"] * 5
         )
         if event == "death":
             cause = random.choice(
@@ -656,8 +674,187 @@ class Marriage(commands.Cog):
                     _("They have been abducted by aliens!"),
                     _("The Catholic Church got them..."),
                     _("They starved after becoming a communist."),
-                ]
-            )
+                    _("A rogue rubber chicken slapped them to oblivion."),
+                    _("They laughed too hard at their own joke."),
+                    _("They choked on air... it's more common than you think."),
+                    _("They were squashed flat by a runaway pancake."),
+                    _("Drowned in a sea of glitter."),
+                    _("Tried to high-five a unicorn and missed."),
+                    _("An unexpected pineapple uprising was the cause."),
+                    _("Got sucked into a giant tea cup during a mad tea party."),
+                    _("Was hugged a tad too tight by an overzealous teddy bear."),
+                    _("Suffocated in a room filled with bubble wrap pops."),
+                    _("A mime trapped them inside an invisible box."),
+                    _("Attacked by a savage troop of giggling baby ducks."),
+                    _("Slipped on a banana peel... in space."),
+                    _("A surprise guacamole flood took them away."),
+                    _("They tried to smell what the Rock was cooking."),
+                    _("Mistakenly joined a squirrel flash mob."),
+                    _("Failed to resist the urge to touch a big red button labeled 'Do Not Press'."),
+                    _("Taken out by a rogue frisbee."),
+                    _("Squirted to oblivion by a malfunctioning water gun."),
+                    _("Defeated in an epic dance-off by an elderly sloth."),
+                    _("The cookies they tried to steal from the cookie jar rebelled."),
+                    _("Lost in a particularly challenging corn maze."),
+                    _("They took the term 'sleeping with the fishes' too literally."),
+                    _("Got tangled in an infinite loop of shoelaces."),
+                    _("Died waiting for a very slow sloth to finish its joke."),
+                    _("Dragged into the depths by an angry rubber ducky."),
+                    _("Mistook quicksand for a comfy beanbag."),
+                    _("Their pet rock turned on them."),
+                    _("Tried to take on a sparrow in a chirping contest."),
+                    _("Bounced to oblivion on a particularly springy trampoline."),
+                    _("Bitten by a voracious and very hangry vegetarian vampire."),
+                    _("Died trying to prove chickens can indeed fly."),
+                    _("Engulfed by a rogue tidal wave of chocolate milk."),
+                    _("Misjudged the trajectory during a moonwalk dance move."),
+                    _("Was playing hide-and-seek. Never found."),
+                    _("Caught in a marshmallow avalanche while camping."),
+                    _("Accidentally turned into a frog while learning magic. Couldn’t ribbit back."),
+                    _("Entangled in an intense yodeling competition."),
+                    _("Went in search of the end of the rainbow. It was a slippery slope."),
+                    _("Struck by a shooting star while making a wish."),
+                    _("Lost in a tickle war against a feather duster."),
+                    _("Eaten by a ferocious, cookie-craving cookie monster."),
+                    _("Got trapped inside a runaway hamster ball."),
+                    _("Taken out by an aggressive hoard of manic garden gnomes."),
+                    _("Disappeared after attempting to milk a particularly stubborn cow."),
+                    _("Swallowed by a giant venus flytrap while attempting to take a selfie."),
+                    _("Caught up in a wild stampede of fluffy bunnies."),
+                    _("Took a detour through a wormhole while going to the grocery store."),
+                    _("Got caught in the crossfire during a furious pillow fight."),
+                    _("Buried under a mountain of out-of-control spaghetti."),
+                    _("Distracted by a cat video and never returned."),
+                    _("Stuck forever trying to get a particularly stubborn song out of their head."),
+                    _("Vanished after trying to tame a rebellious vacuum cleaner."),
+                    _("Died of laughter during a mime’s performance."),
+                    _("Attempted to bungee jump using spaghetti. It wasn’t al dente enough."),
+                    _("Locked in an eternal dance with a spirited disco ball."),
+                    _("Last seen chasing a very determined and fast tortoise."),
+                    _("Caught in a sudden downpour of molten fondue."),
+                    _("Died of sheer surprise when their plant actually grew."),
+                    _("Lost in a deep philosophical debate with a parrot."),
+                    _("Met their end in a fierce battle with a sentient vacuum cleaner. Dust bunnies were the casualties."),
+                    _("Tragically drowned in a sea of unopened takeout menus. Their final meal remains a mystery."),
+                    _("Succumbed to 'Extreme Procrastination Syndrome'. The to-do list outlived them."),
+                    _("Lost a debate with a houseplant. Turns out, ferns are surprisingly convincing."),
+                    _("Met their match in a thumb war with a particularly competitive thumb wrestler."),
+                    _("Was outwitted by a cunning coffee mug in a game of chess. The king got checkmated by caffeine."),
+                    _("Challenged a banana peel to a duel. Slipped on their own terms."),
+                    _("Engaged in a karaoke battle with a tone-deaf parrot. The parrot emerged victorious."),
+                    _("Met their fate in a duel against a rogue spaghetti noodle. Carb combat is unpredictable."),
+                    _("Dared to defy gravity while attempting a moonwalk on an escalator. Lost the rhythm."),
+                    _("Engaged in a heated staring contest with a computer screen. Screen blinked first."),
+                    _("Challenged a rubber chicken to a stand-up comedy showdown. The chicken's punchlines were eggstraordinary."),
+                    _("Lost a battle against a self-assembling furniture kit. The instructions remained an enigma."),
+                    _("Fell victim to an ambush by killer puns. The puns were armed and dadly."),
+                    _("Met their demise while trying to tame a rebellious GPS. The coordinates led to chaos."),
+                    _("Engaged in a rap battle with a malfunctioning printer. The printer dropped the beats."),
+                    _("Lost a thumb war against a robotic hand. The hand was too 'digit'-ally advanced."),
+                    _("Succumbed to 'Extreme Sarcasm Overdose'. Their last words were eye-rolling."),
+                    _("Challenged a rubber duck to a staring contest. Quack stared back."),
+                    _("Met an unfortunate end in a 'Jumping Jacks' competition with a kangaroo. The kangaroo had the hops."),
+                    _("Engaged in a pillow fight with a ninja pillow. The fluff was deadly."),
+                    _("Lost a race against time in a 'Speed Typing' competition. Auto-correct mocked their haste."),
+                    _("Succumbed to laughter while trying to teach a cat to laugh. The cat remained unamused."),
+                    _("Challenged a mirror to a duel of wits. The mirror reflected their lack of wisdom."),
+                    _("Met their untimely end in a thumb wrestling match with a thumb wrestling champion. The thumb was too formidable."),
+                    _("Engaged in a hot sauce tasting contest. It was a spicy demise."),
+                    _("Lost a game of 'Hide and Seek' with an invisible friend. The friend remained unseen."),
+                    _("Succumbed to the chaos of a 'Rock, Paper, Scissors, Lizard, Spock' marathon. The lizard was the ultimate victor."),
+                    _("Challenged a rubber tree to a 'Flexibility Showdown'. The tree outbent them."),
+                    _("Met their match in a 'Who Can Roll Their Eyes the Most' competition. Eyeballs were exhausted."),
+                    _("Engaged in a fierce thumb war with a smartphone. The touchscreen prevailed."),
+                    _("Lost a debate with a wise-cracking refrigerator. The fridge's cool logic was unbeatable."),
+                    _("Succumbed to 'Extreme Marshmallow Roasting'. The marshmallows were too toasty."),
+                    _("Challenged a rubber band to a 'Stretching Showdown'. The rubber band snapped back."),
+                    _("Met their match in a 'Who Can Make the Most Annoying Sound' contest. The winner was ear-resistible."),
+                    _("Engaged in a 'Quietest Whistle' competition. The silence was deafening."),
+                    _("Lost a staring contest against a mirror ball. Disco dazzled them into submission."),
+                    _("Succumbed to the allure of a 'Tickle Me Elmo' rampage. Laughter was the cause."),
+                    _("Challenged a magic 8-ball to a fortune-telling duel. The responses were mysteriously unfavorable."),
+                    _("Met their end in a 'Balancing Act' with a stack of pancakes. The syrupy collapse was tragic."),
+                    _("Engaged in a 'Bubble Wrap Popping' contest. The pops were their final symphony."),
+                    _("Lost a chess match against a pigeon. The pigeon played fowl."),
+                    _("Succumbed to an epic 'Battle of the Air Guitars'. The imaginary riff was too electrifying."),
+                    _("Challenged a rubber chicken to a 'Dad Joke Duel'. The chicken's jokes were eggsquisite."),
+                    _("Met their match in a 'Who Can Whisper the Loudest' competition. Silence spoke volumes."),
+                    _("Engaged in a 'Most Dramatic Sigh' contest. The sighs were tragically profound."),
+                    _("Lost a 'Silent Scream' competition. The quietest scream was hauntingly muted."),
+                    _("Succumbed to the mystery of a 'Disappearing Act' gone wrong. The reappearing was elusive."),
+                    _("Challenged a mirror to a 'Who Can Reflect the Most' contest. Reflections were overwhelming."),
+                    _("Met their end in a 'Tightrope Walk' over a puddle of spilled coffee. The balance was too caffeinated."),
+                    _("Engaged in a 'Paper Airplane' dogfight. The paper cuts were airborne."),
+                    _("Lost a 'Gum Bubble' inflating competition. The bubble burst was gumtastic."),
+                    _("Succumbed to a 'Thumb Wrestling' match with a sticky note. The adhesive was unbeatable."),
+                    _("Challenged a rubber duck to a 'Quack Off'. The duck quacked them up."),
+                    _("Met their match in a 'Who Can Blink the Slowest' contest. Blinking was defeated."),
+                    _("Engaged in a 'Bubblegum Bubble Popping' marathon. The gum exploded."),
+                    _("Lost a 'Funny Face' competition with a mirror. The mirror cracked up."),
+                    _("Succumbed to a 'Finger Snap' duel. The snaps were too snappy."),
+                    _("Challenged a rubber chicken to a 'Dance Off'. The chicken had killer moves."),
+                    _("Met their end in a 'Whistle While You Work' competition. The work whistled back."),
+                    _("Engaged in a 'Duct Tape Sculpture' showdown. The tape was too sticky."),
+                    _("Lost a 'Thumb War' with a stapler. The stapler was unyielding."),
+                    _("Succumbed to a 'Balancing Act' on a seesaw. The seesaw saw their downfall."),
+                    _("Challenged a rubber band to a 'Ping Pong' match. The band pinged them off the table."),
+                    _("Met their match in a 'Who Can Juggle Water Balloons' contest. The balloons burst."),
+                    _("Engaged in a 'Pillow Fight' with a marshmallow pillow. The fluff was fierce."),
+                    _("Lost a 'Tongue Twister' battle with a parrot. The parrot twisted tongues."),
+                    _("Succumbed to an 'Epic Eyebrow Raise' competition. The brows reached new heights."),
+                    _("Challenged a rubber chicken to a 'Knee Slapping' contest. The chicken's slaps were knee-slappers."),
+                    _("Met their end in a 'Hula Hoop' duel. The hoop hooped them out of existence."),
+                    _("Engaged in a 'Spatula Flip' showdown. The flip was spectacular."),
+                    _("Lost a 'Who Can Whistle the Loudest Without Whistling' competition. Silence was deafening."),
+                    _("Succumbed to a 'Staring Contest' with a mirror ball. The disco dazzled them."),
+                    _("Challenged a rubber duck to a 'Synchronized Quacking' competition. The duck quacked in harmony."),
+                    _("Met their match in a 'Who Can Tie the Most Confusing Knots' contest. Knots were too tangled."),
+                    _("Engaged in a 'Marshmallow Roasting' competition with a dragon. The dragon's breath was fiery."),
+                    _("Lost a 'Balloon Animal' battle with a balloon octopus. The octopus ballooned out of control."),
+                    _("Succumbed to an 'Epic Pillow Fort Collapse'. The fort crumbled."),
+                    _("Challenged a rubber band to a 'Rubber Band Guitar' showdown. The band played them out."),
+                    _("Met their end in a 'Who Can Hula Hoop the Longest' competition. The hoop outlasted them."),
+                    _("Engaged in a 'Bubble Wrap' popping marathon. The pops were poppin'."),
+                    _("Lost a 'Who Can Balance a Teacup on Their Head' contest. The teacup toppled."),
+                    _("Succumbed to a 'Duct Tape Fashion Showdown'. The tape was too fashionable."),
+                    _("Challenged a rubber chicken to a 'Staring Contest'. The chicken blinked them away."),
+                    _("Met their match in a 'Who Can Eat the Most Jellybeans with Chopsticks' contest. Jellybeans rolled away."),
+                    _("Engaged in a 'Spoon Balancing' showdown. The spoons were too spoonish."),
+                    _("Lost a 'Bubblegum Bubble Blowing' competition. The bubble burst was bubbly."),
+                    _("Succumbed to a 'Thumb Wrestling' match with a thumbtack. The thumbtack was pointy."),
+                    _("Challenged a rubber duck to a 'Dance-Off'. The duck had quacktastic moves."),
+                    _("Met their end in a 'Who Can Tangle Christmas Lights the Most' contest. Lights were too festive."),
+                    _("Engaged in a 'Who Can Whisper the Loudest' competition. The whispers were deafening."),
+                    _("Lost a 'Who Can Hug a Cactus the Longest' contest. The cactus was prickly."),
+                    _("Succumbed to a 'Potato Sack Race' with a kangaroo. The sack was too sacky."),
+                    _("Challenged a rubber band to a 'Tug-of-War'. The band snapped back."),
+                    _("Met their match in a 'Who Can Juggle the Most Water Balloons' contest. Balloons burst."),
+                    _("Engaged in a 'Thumb War' with a stapler. The stapler was unyielding."),
+                    _("Lost a 'Who Can Balance a Teacup on Their Head' contest. The teacup toppled."),
+                    _("Succumbed to a 'Duct Tape Fashion Showdown'. The tape was too fashionable."),
+                    _("Challenged a rubber chicken to a 'Staring Contest'. The chicken blinked them away."),
+                    _("Met their match in a 'Who Can Eat the Most Jellybeans with Chopsticks' contest. Jellybeans rolled away."),
+                    _("Engaged in a 'Spoon Balancing' showdown. The spoons were too spoonish."),
+                    _("Lost a 'Bubblegum Bubble Blowing' competition. The bubble burst was bubbly."),
+                    _("Succumbed to a 'Thumb Wrestling' match with a thumbtack. The thumbtack was pointy."),
+                    _("Challenged a rubber duck to a 'Dance-Off'. The duck had quacktastic moves."),
+                    _("Met their end in a 'Who Can Tangle Christmas Lights the Most' contest. Lights were too festive."),
+                    _("Engaged in a 'Who Can Whisper the Loudest' competition. The whispers were deafening."),
+                    _("Lost a 'Who Can Hug a Cactus the Longest' contest. The cactus was prickly."),
+                    _("Succumbed to a 'Potato Sack Race' with a kangaroo. The sack was too sacky."),
+                    _("Challenged a rubber band to a 'Tug-of-War'. The band snapped back."),
+                    _("Met their match in a 'Who Can Juggle the Most Water Balloons' contest. Balloons burst."),
+                    _("Engaged in a 'Staring Contest' with a chameleon. The chameleon blended in, and they never saw it coming."),
+                    _("Lost a 'Who Can Hold Their Breath the Longest' contest underwater. Forgot they weren't amphibious."),
+                    _("Succumbed to a 'Marshmallow Sword Fight' with a marshmallow ninja. The marshmallow katana was unbeatable."),
+                    _("Challenged a rubber chicken to a 'Pillow Fight'. The chicken fluffed them out of existence."),
+                    _("Met their end in a 'Who Can Drink the Most Invisible Potion' contest. Forgot they were participating."),
+                    _("Engaged in a 'Paper Airplane' dogfight with a paper airplane pilot. The paper cuts were aerial."),
+                    _("Lost a 'Who Can Mime the Longest' competition. The invisible box became their eternal stage."),
+                    _("Succumbed to a 'Duct Tape Escapade'. Tried to break free but got stuck in a sticky situation."),
+                ])
+
+
             await self.bot.pool.execute(
                 'DELETE FROM children WHERE "name"=$1 AND (("mother"=$2 AND'
                 ' "father"=$4) OR ("father"=$2 AND "mother"=$4)) AND "age"=$3;',
@@ -687,6 +884,77 @@ class Marriage(commands.Cog):
                     _("spent it in the shop."),
                     _("bought some toys."),
                     _("has gambling addiction and lost the money..."),
+                    _("they trusted Honey to gamble for them..."),
+                    _("tried to invest in 'underwater basket weaving' classes."),
+                    _("backed a Kickstarter for 'invisible socks'. Guess they were *too* invisible."),
+                    _("thought they found a unicorn breeding farm and invested heavily."),
+                    _("bought the Brooklyn Bridge from a very 'trustworthy' salesman."),
+                    _("enrolled in a 'How to Grow Money Trees' seminar."),
+                    _("tried to bribe a squirrel for its 'magic' acorns."),
+                    _("paid to become a certified ninja... at 'Shady's Ninja School'."),
+                    _("invested in a 'lunar real estate' opportunity."),
+                    _("purchased a DIY teleportation kit online. Still waiting for it."),
+                    _("got a premium subscription to 'Whale Whisperers Monthly'."),
+                    _("bought a rare painting. Turns out it was just modern art drawn by a toddler."),
+                    _("funded a time travel startup. Apparently, it's coming 'any day now'."),
+                    _("acquired an iceberg believing it to be a diamond mine."),
+                    _("bought tickets for the 'Annual Invisible Circus'. Still trying to find the venue."),
+                    _("paid a mime to speak."),
+                    _("invested in bottled air. Turns out it wasn't a breath of fresh air."),
+                    _("bought a pet rock's luxury mansion."),
+                    _("tried to buy magic beans. Just got regular beans."),
+                    _("funded a movie titled 'Watching Paint Dry'. Critics called it 'riveting'."),
+                    _("purchased an 'autographed' picture of Bigfoot."),
+                    _("enrolled in a school for wizards. The headmaster? Larry Botter."),
+                    _("ordered a potion to become a mermaid. Now they have glittery bathwater."),
+                    _("invested in sandcastles thinking they were beachfront property."),
+                    _("bought stocks in 'Canned Unicorn Laughter'. Turns out, it's just regular air."),
+                    _("purchased an all-access pass to Cloud Nine. Waiting for the ladder."),
+                    _("bankrolled a snail racing league. It's... progressing... slowly."),
+                    _("hired a personal trainer for their pet fish."),
+                    _("got VIP tickets to a 'Whack-a-Mole Championship'. There was no 'hole' lot of action."),
+                    _("took a gourmet course titled '50 Ways to Boil Water'."),
+                    _("commissioned a portrait of their shadow."),
+                    _("paid for a 'Haunted Toaster'. It only spooks the bread."),
+                    _("sponsored an expedition to find the edge of their flat globe."),
+                    _("bought a DIY kit: 'Build Your Own Air Guitar'."),
+                    _("financed a documentary on the wild life of sock puppets."),
+                    _("ordered gourmet diet water for their new health regimen."),
+                    _("bought a bridge in the Sahara. Claims it's a 'hot' property."),
+                    _("invested in 'Penguin Flying Lessons'. The penguins still prefer to waddle."),
+                    _("purchased exclusive rights to a mime's podcast."),
+                    _("hired a detective to find out where the sun goes at night."),
+                    _("got an e-book on 'How to Learn Telepathy'. Still waiting for it to download to their brain."),
+                    _("bought a magic carpet. It doesn't fly, but vacuums itself."),
+                    _("purchased a rare, invisible pet. Keeps forgetting where they put it."),
+                    _("financed the creation of a chocolate teapot."),
+                    _("ordered 'Low Fat Water' from a TV infomercial."),
+                    _("paid to watch a 3-day marathon of 'The Grass Growing Channel'."),
+                    _("invested in a 'Whiskey Fountain' startup but it only poured regrets."),
+                    _("bought a 'Chocolate Jacuzzi' thinking it would be sweet, ended up with a sticky mess."),
+                    _("sponsored a 'Synchronized Wine Tasting' team; they synchronized stumbling instead."),
+                    _("tried to patent a 'Mind-Reading Pillow' for dream analysis; it just snores."),
+                    _("enrolled in 'Advanced Potato Photography' hoping for spud glamour shots."),
+                    _("invested in 'Wearable Blanket Stocks' for a cozy financial future."),
+                    _("ordered a 'DIY Love Potion' online; now the cat won't stop following them."),
+                    _("tried to buy 'Intergalactic Real Estate'; turns out, extraterrestrials don't do mortgages."),
+                    _("funded a study on 'Romantic Chemistry'; results were more explosions than sparks."),
+                    _("bought a 'DIY Romance Novel' kit but ended up with a steamy plot twist."),
+                    _("invested in 'Personalized Pick-Up Lines'; delivery guy just handed them a pizza."),
+                    _("ordered a 'Love Spell Candle'; it only attracted moths."),
+                    _("sponsored a 'Matchmaking Fortune Cookie' company; all fortunes said 'try another cookie'."),
+                    _("tried to patent 'Flirting in Morse Code' but only attracted confused bees."),
+                    _("enrolled in a class on 'Whispering Sweet Nothings to Succulents' for platonic relationships."),
+                    _("bought a 'DIY Massage Chair'; it just vibrates with disappointment."),
+                    _("invested in a startup that promised 'Relationship GPS'; it led to the friend zone."),
+                    _("ordered a 'Candlelit Dinner for One'; the candle burned out before the microwave beeped."),
+                    _("sponsored a seminar on 'Finding Your Soulmate in a Haystack'; ended up with a needle."),
+                    _("tried to patent a 'Hug Subscription Service'; got tangled in the fine print."),
+                    _("bought a 'DIY Compliment Generator'; it only says 'nice try' repeatedly."),
+                    _("invested in 'Virtual High-Five Stocks'; market crashed with a low slap."),
+                    _("ordered a 'Love Potion Perfume'; now the neighbors' dogs won't stop following."),
+                    _("tried to patent 'Emoji Flirting'; just confused everyone with eggplants."),
+                    _("enrolled in 'Advanced Hugging Techniques'; turns out, tight squeezes are just awkward."),
                 ]
             )
             money = random.randint(0, int(ctx.character_data["money"] / 64))
@@ -700,8 +968,8 @@ class Marriage(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": -money},
+                    subject="Family Event",
+                    data={"Gold": -money},
                     conn=conn,
                 )
 
@@ -711,19 +979,61 @@ class Marriage(commands.Cog):
                 )
             )
         elif event == "moneygain":
-            cause = random.choice(
-                [
-                    _("finally found a job!"),
-                    _("won a lottery."),
-                    _("sold their toys."),
-                    _("got money from another kid that decided to become communist."),
-                    _("stole it from a traveller."),
-                    _("finished a quest with a money reward."),
-                    _("used dark magic to summon some money."),
-                    _("looted a local warehouse and sold the wares."),
-                    _("solved an enigma with a money reward."),
-                ]
-            )
+            cause = random.choice([
+                _("discovered a loophole in the space-time continuum and cashed in on future earnings."),
+                _("trained squirrels to pickpocket for them. Acorns aren't the only nuts they're collecting now!"),
+                _("became a professional procrastinator and delayed getting rich until the last possible moment."),
+                _("mastered the art of selling virtual real estate in their dreams. The market is imaginary, but the profits are real!"),
+                _("invented 'inflatable money' - because who needs real currency when you can have bounceable bills?"),
+                _("started a business selling 'dehydrated water'. Just add water to experience the wetness!"),
+                _("organized a 'Hide and Seek' championship in a mirrored maze. Still waiting for someone to win."),
+                _("offered 'Thought Delivery' services. Just think about what you want, and they'll send it to you... eventually."),
+                _("became a professional mime for introverted cats. The applause is silent, but the tuna treats are real."),
+                _("invented 'reverse psychology fortune cookies'. They tell you your future, but it's always wrong, so you prove them otherwise."),
+                _("taught cats how to use smartphones and started an Instagram account for them. #PurrfectSelfies"),
+                _("marketed 'invisible ink' for e-books. Now you can see exactly what you're not reading!"),
+                _("offered a course on 'How to Win Arguments with a Goldfish'. Spoiler: They always forget the point."),
+                _("became a time-traveling therapist for stressed-out dinosaurs. The past has never felt so present."),
+                _("started a 'Telepathic Karaoke' club. It's all in your head, but the reviews are out of this world!"),
+                _("sold 'DIY Cloning Kits'. Now everyone can have a twin, even if it's just a potted plant."),
+                _("became a life coach for philosophical robots. Helping them find meaning in binary."),
+                _("organized a 'World's Shortest Marathon' – the finish line is just a step away!"),
+                _("invented 'silent fireworks'. Explosive colors, zero noise – perfect for introverted celebrations!"),
+                _("started a 'Reverse Escape Room' where you pay to let others lock you in. It's oddly liberating."),
+                _("trained hamsters as motivational speakers. Their motto: 'Run the wheel of life with enthusiasm!'"),
+                _("became a professional 'Napper's Delight' consultant. Helping you achieve the perfect siesta."),
+                _("invented 'self-igniting candles'. Because sometimes you just need a little spark."),
+                _("started a 'Reverse Diet Plan'. You eat more, and the scale shows less."),
+                _("organized a 'Wink-and-a-Nod' club. Membership is implied."),
+                _("sold 'Invisible Ink Tattoos'. Keeping your secrets skin-deep."),
+                _("became a 'Cupid's Sidekick'. Assisting in love, one arrow at a time."),
+                _("invented 'Whispering Yoga'. Because relaxation should be hush-hush."),
+                _("started a 'Grown-Up Blanket Fort' business. Building walls of sophistication."),
+                _("offered a 'Sassy Fortune Cookie' service. Sarcasm, but make it prophetic."),
+                _("became a 'Pillow Fight Referee'. Ensuring fluff and fair play."),
+                _("invented 'Adulthood Amnesia Pills'. Forget bills, remember fun."),
+                _("organized a 'Subtle Pickup Line' seminar. Flirting without the cringe."),
+                _("sold 'Invisible Handcuffs'. Commitment, but make it incognito."),
+                _("started a 'Pro-level Hide and Seek' league. Seeking is optional."),
+                _("trained cats as 'Therapists with Fur'. Purring heals all wounds."),
+                _("invented 'Silent Movie Karaoke'. Mime along to your favorite scenes."),
+                _("opened a 'Confidential Compliments' agency. Complimenting you discreetly."),
+                _("offered 'Adulting Excuse Cards'. Because sometimes you just need a break."),
+                _("became a 'Nightstand Comedian'. Jokes that won't wake the neighbors."),
+                _("invented 'Serious Whoopee Cushions'. Because maturity needs humor."),
+                _("started a 'Wine Tasting for Beginners' class. Sip, don't spill."),
+                _("sold 'Invisible Ties'. Formality without the fuss."),
+                _("organized a 'Grown-Up Treasure Hunt'. The prize? A good bottle of wine."),
+                _("offered 'Customized Sarcasm Lessons'. Tailored snark for every occasion."),
+                _("became a 'Professional Secret Agent'. Keeping your secrets, well, secret."),
+                _("invented 'Reverse Aging Cream'. Embrace the wisdom, keep the looks."),
+                _("started a 'Whispered Jazzercise' class. Burning calories in hushed tones."),
+                _("sold 'Unspoken Promises'. No commitments, just unspoken intentions."),
+                _("trained squirrels as 'Relationship Therapists'. Nutty problems, serious solutions."),
+                _("offered 'Low-Key Life Coaching'. Because not every goal needs to be shouted."),
+                _("became a 'Mime Life Coach'. Actions speak louder than words, silently.")
+            ])
+
             money = random.randint(0, int(ctx.character_data["money"] / 64))
             async with self.bot.pool.acquire() as conn:
                 await conn.execute(
@@ -735,8 +1045,8 @@ class Marriage(commands.Cog):
                     ctx,
                     from_=1,
                     to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": money},
+                    subject="FamilyEvent Money",
+                    data={"Gold": money},
                     conn=conn,
                 )
             return await ctx.send(
@@ -746,10 +1056,11 @@ class Marriage(commands.Cog):
             )
         elif event == "crate":
             type_ = random.choice(
-                ["common"] * 500
-                + ["uncommon"] * 200
+                ["common"] * 497
+                + ["uncommon"] * 199
                 + ["rare"] * 50
-                + ["magic"] * 10
+                + ["magic"] * 7
+                + ["fortune"] * 3
                 + ["legendary"]
             )
             async with self.bot.pool.acquire() as conn:
@@ -762,7 +1073,7 @@ class Marriage(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="crates",
+                    subject="FamilyEvent Crate",
                     data={"Rarity": type_, "Amount": 1},
                     conn=conn,
                 )

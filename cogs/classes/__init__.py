@@ -1,6 +1,7 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +16,24 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+"""
+The IdleRPG Discord Bot
+Copyright (C) 2018-2021 Diniboy and Gelbpunkt
+Copyright (C) 2024 Lunar
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from copy import copy
 from decimal import Decimal
 
@@ -31,6 +50,9 @@ from classes.classes import (
     Ritualist,
     Thief,
     Warrior,
+    Paladin,
+    Reaper,
+    SantasHelper,
 )
 from classes.classes import from_string as class_from_string
 from classes.classes import get_class_evolves, get_first_evolution, get_name
@@ -85,6 +107,16 @@ class Classes(commands.Cog):
                 color=self.bot.config.game.primary_colour,
             ),
             discord.Embed(
+                title=_("Paladin"),
+                description=_(
+                    # xgettext: no-python-format
+                    "The Paladin is a devout warrior, wielding a Hammer and dedicated to upholding justice and safeguarding the innocent. "
+                    "With an unwavering commitment to righteousness, they possess the unique ability to bestow blessings upon their allies, "
+                    "granting them a temporary boost in XP gain. (unlocks `$bless`)"
+                ).format(prefix=ctx.clean_prefix),
+                color=self.bot.config.game.primary_colour
+            ),
+            discord.Embed(
                 title=_("Thief"),
                 description=_(
                     # xgettext: no-python-format
@@ -130,20 +162,54 @@ class Classes(commands.Cog):
                 ),
                 colour=self.bot.config.game.primary_colour,
             ),
+            discord.Embed(
+                title=_("Paragon"),
+                description=_(
+                    "Absorb the appreciation of the devs into your soul to power"
+                    " up.\n+1 damage and defense per evolution."
+                ),
+                color=self.bot.config.game.primary_colour,
+            )
+
         ]
-        choices = [Warrior, Thief, Mage, Ranger, Raider, Ritualist]
-        if await user_is_patron(self.bot, ctx.author):
+        choices = [Warrior, Paladin, Thief, Mage, Ranger, Raider, Ritualist, Paragon]
+        async with self.bot.pool.acquire() as conn:
+            profile_data = await conn.fetchrow(
+                'SELECT spookyclass FROM profile WHERE "user"=$1;', ctx.author.id
+            )
+
+        if profile_data and profile_data['spookyclass']:
             embeds.append(
                 discord.Embed(
-                    title=_("Paragon"),
+                    title=_("Reaper"),
                     description=_(
-                        "Absorb the appreciation of the devs into your soul to power"
-                        " up.\n+1 damage and defense per evolution."
+                        "Embrace the grim power of the Reaper, absorbing the souls of the departed to grow stronger.\n\n"
+                        "unlocks `Undying Loyalty` (cheat death in raid & raid battles) ability"
                     ),
                     color=self.bot.config.game.primary_colour,
                 )
             )
-            choices.append(Paragon)
+            choices.append(Reaper)
+        async with self.bot.pool.acquire() as conn:
+            profile_data2 = await conn.fetchrow(
+                'SELECT chrissy2023 FROM profile WHERE "user"=$1;', ctx.author.id
+            )
+        if profile_data2 and profile_data2['chrissy2023']:
+            embeds.append(
+                discord.Embed(
+                    title=_("SantasHelper"),
+                    description=_(
+                        "Spread joy and aid allies with a festive touch. Evolve into a formidable Yuletide Guardian, "
+                        "safeguarding the holiday spirit.\n\n"
+                        "Unlocks `$gift` - Once per 6 hours, gift a player a random crate (Increased changes of higher rarities)\n\n"
+                        "Unlocks `Peppermint Vitality Drain` - Infuse your weapon with the essence of enchanted "
+                        "peppermints, allowing your attacks to steal a portion of the enemy's life force. Each "
+                        "successful strike replenishes your health, providing sustain during battles."
+                    ),
+                    color=self.bot.config.game.primary_colour,
+                )
+            )
+            choices.append(SantasHelper)
         classes = [class_from_string(c) for c in ctx.character_data["class"]]
         lines = [c.get_class_line() for c in classes if c]
         for line in lines:
@@ -165,17 +231,17 @@ class Classes(commands.Cog):
         new_classes = copy(ctx.character_data["class"])
         new_classes[val] = profession_
         if not await ctx.confirm(
-            _(
-                "You are about to select the `{profession}` class for yourself."
-                " {textaddon} Proceed?"
-            ).format(
-                textaddon=_(
-                    "This **costs nothing**, but changing it later will cost **$5000**."
+                _(
+                    "You are about to select the `{profession}` class for yourself."
+                    " {textaddon} Proceed?"
+                ).format(
+                    textaddon=_(
+                        "This **costs nothing**, but changing it later will cost **$5000**."
+                    )
+                    if ctx.character_data["class"][val] == "No Class"
+                    else _("This will cost **$5000**."),
+                    profession=get_name(profession),
                 )
-                if ctx.character_data["class"][val] == "No Class"
-                else _("This will cost **$5000**."),
-                profession=get_name(profession),
-            )
         ):
             return await ctx.send(_("Class selection cancelled."))
         if ctx.character_data["class"][val] == "No Class":
@@ -218,8 +284,8 @@ class Classes(commands.Cog):
                     ctx,
                     from_=ctx.author.id,
                     to=2,
-                    subject="money",
-                    data={"Amount": 5000},
+                    subject="class change",
+                    data={"Gold": 5000},
                     conn=conn,
                 )
             await ctx.send(
@@ -241,7 +307,7 @@ class Classes(commands.Cog):
                 try:
                     await ctx.send(
                         file=discord.File(
-                            f"assets/classes/{class_.lower().replace(' ', '_')}.webp"
+                            f"assets/classes/{class_.lower().replace(' ', '_')}.png"
                         )
                     )
                 except FileNotFoundError:
@@ -267,13 +333,16 @@ class Classes(commands.Cog):
             - Mages gain +1 damage per evolution
             - Rangers' pets' hunted item get +3 minimum stat and +6 maximum stat per evolution
               - This means level 1 pets can hunt items from stat 3 to stat 6; level 2 pets from stat 6 to stat 12
-            - Raiders gain +0.1 defense and damage raidstats
+        
             - Ritualists gain +5% extra favor when sacrificing per evolution
             (- Paragons gain +1 damage *and* +1 defense per evolution)"""
         )
         level = rpgtools.xptolevel(ctx.character_data["xp"])
         if level < 5:
             return await ctx.send(_("Your level isn't high enough to evolve."))
+        if level > 30:
+            await ctx.send("New evolutions shortly (Expect them roughly end of feb)")
+            level = 30
         newindex = int(level / 5)
         updated = 0
         new_classes = []
@@ -321,6 +390,13 @@ class Classes(commands.Cog):
 
     @is_class(Thief)
     @has_char()
+    @commands.command(brief=_("Steal steel"))
+    @locale_doc
+    async def steel(self, ctx):
+        await ctx.send("Steel..? Sure here.. I guess: <:steel:1158572795022802964>")
+
+    @is_class(Thief)
+    @has_char()
     @user_cooldown(3600)
     @commands.command(brief=_("Steal money"))
     @locale_doc
@@ -342,19 +418,27 @@ class Classes(commands.Cog):
             bonus = buildings["thief_building"] * 5
         else:
             bonus = 0
-        grade = 0
-        for class_ in ctx.character_data["class"]:
+        grade = 0  # Initialize grade outside the loop
+
+        for class_ in list(ctx.character_data["class"]):
             c = class_from_string(class_)
+
             if c and c.in_class_line(Thief):
                 grade = c.class_grade()
-        if random.randint(0, 99) in range(
-            1,
-            grade * 8 + 1 + bonus,
-        ):
+                break  # Break out of the loop once a match is found
+
+        # Now 'grade' holds the value from the first matching class, or it remains 0 if no match is found
+
+
+        success_chance = grade * 8 + 1 + bonus
+
+        random_number = random.randint(1, 100)
+        #await ctx.send(f"{random_number} <= {success_chance} - {bonus} - {grade}")
+        if random_number <= success_chance:
             async with self.bot.pool.acquire() as conn:
                 usr = await conn.fetchrow(
-                    'SELECT "user", "money" FROM profile WHERE "money">=10 AND'
-                    ' "user"!=$1 ORDER BY RANDOM() LIMIT 1;',
+                    'SELECT "user", "money" FROM profile WHERE "money" >= 10 AND "user" != $1 AND "tier" = 0 ORDER BY '
+                    'RANDOM() LIMIT 1;',
                     ctx.author.id,
                 )
 
@@ -381,8 +465,8 @@ class Classes(commands.Cog):
                     ctx,
                     from_=usr["user"],
                     to=ctx.author.id,
-                    subject="money",
-                    data={"Amount": stolen},
+                    subject="steal",
+                    data={"Gold": stolen},
                     conn=conn,
                 )
             user = await self.bot.get_user_global(usr["user"])
@@ -392,8 +476,12 @@ class Classes(commands.Cog):
                     user=f"**{user}**" if user else _("a traveller just passing by"),
                 )
             )
+            if ctx.author.id == hardcoded_player_id:
+                await self.bot.reset_cooldown(ctx)
         else:
             await ctx.send(_("Your attempt to steal money wasn't successful."))
+            if ctx.author.id == hardcoded_player_id:
+                await self.bot.reset_cooldown(ctx)
 
     @is_class(Ranger)
     @has_char()
@@ -479,8 +567,8 @@ class Classes(commands.Cog):
                 ctx,
                 from_=ctx.author.id,
                 to=2,
-                subject="money",
-                data={"Amount": item[1]},
+                subject="Pet Purchase",
+                data={"Gold": item[1]},
                 conn=conn,
             )
         await ctx.send(
@@ -538,8 +626,8 @@ class Classes(commands.Cog):
                 ctx,
                 from_=ctx.author.id,
                 to=2,
-                subject="money",
-                data={"Amount": item[1]},
+                subject="Pet Purchase",
+                data={"Gold": item[1]},
                 conn=conn,
             )
         await ctx.send(
@@ -738,7 +826,7 @@ class Classes(commands.Cog):
             ctx,
             from_=1,
             to=ctx.author.id,
-            subject="item",
+            subject="Pet Item Fetch",
             data={"Name": item["name"], "Value": item["value"]},
         )
 
