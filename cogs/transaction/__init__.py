@@ -447,7 +447,7 @@ class Transaction(commands.Cog):
         )
 
         if len(ctx.transaction["items"]) >= 15:
-            return await ctx.send(_("You can only add up to 10 items to the trade."))
+            return await ctx.send(_("You can only add up to 15 items to the trade."))
             
         if itemid in [x["id"] for x in ctx.transaction["items"]]:
             return await ctx.send(_("You already added this item!"))
