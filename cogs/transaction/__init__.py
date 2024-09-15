@@ -445,8 +445,13 @@ class Transaction(commands.Cog):
 
             You need to have an open trading session to use this command."""
         )
+
+        if len(ctx.transaction["items"]) >= 15:
+            return await ctx.send(_("You can only add up to 15 items to the trade."))
+            
         if itemid in [x["id"] for x in ctx.transaction["items"]]:
             return await ctx.send(_("You already added this item!"))
+            
         if item := await self.bot.pool.fetchrow(
             'SELECT ai.* FROM allitems ai JOIN inventory i ON (ai."id"=i."item") WHERE'
             ' ai."id"=$1 AND ai."owner"=$2;',
