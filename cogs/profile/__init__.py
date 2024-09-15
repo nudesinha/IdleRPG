@@ -1,7 +1,6 @@
 """
 The IdleRPG Discord Bot
 Copyright (C) 2018-2021 Diniboy and Gelbpunkt
-Copyright (C) 2024 Lunar (discord itslunar.)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +15,6 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
-
 import asyncio
 import re
 
@@ -60,100 +57,241 @@ class Profile(commands.Cog):
 
             (This command has a cooldown of 1 hour.)"""
         )
+
+        from discord import Embed
+
         if not name:
-            await ctx.send(
-                _(
-                    """\
-    What shall your character's name be? (Minimum 3 Characters, Maximum 20)
-
-    **Please note that with the creation of a character, you agree to these rules:**
-    1) Only up to two characters per individual
-    2) No abusing or benefiting from bugs or exploits
-    3) Be friendly and kind to other players
-    4) Trading in-game content for anything outside of the game is prohibited
-
-    IdleRPG is a global bot, your characters are valid everywhere"""
-                )
+            # Create an embed with a title and description
+            embed = Embed(
+                title="Character Creation",
+                description=(
+                    "What shall your character's name be? (Minimum 3 Characters, Maximum 20)\n\n"
+                    "**Please note that with the creation of a character, you agree to these rules:**\n"
+                    "1) Only up to two characters per individual\n"
+                    "2) No abusing or benefiting from bugs or exploits\n"
+                    "3) Be friendly and kind to other players\n"
+                    "4) Trading in-game content for anything outside of the game is prohibited\n\n"
+                    "IdleRPG is a global bot, your characters are valid everywhere"
+                ),
+                color=0x00FF00  # You can customize the color of the embed here
             )
+
+            # Send the embed message
+            await ctx.send(embed=embed)
+
+            # Send an additional message asking for the character's name
+            name_msg = await ctx.send(_("Please reply with your character's name within 60 seconds."))
 
             def mycheck(amsg):
                 return amsg.author == ctx.author and amsg.channel == ctx.channel
 
             try:
-                name = await self.bot.wait_for("message", timeout=60, check=mycheck)
+                name_response = await self.bot.wait_for("message", timeout=60, check=mycheck)
             except asyncio.TimeoutError:
+                await ctx.send(_("Timeout expired. Please retry!"))
                 await self.bot.reset_cooldown(ctx)
-                return await ctx.send(_("Timeout expired. Please retry!"))
-            name = name.content
+                return
+
+            name = name_response.content
         else:
             if len(name) < 3 or len(name) > 20:
+                await ctx.send(_("Character names must be at least 3 characters and up to 20."))
                 await self.bot.reset_cooldown(ctx)
-                return await ctx.send(
-                    _("Character names must be at least 3 characters and up to 20.")
-                )
+                return
 
         if "`" in name:
+            await ctx.send(_("Illegal character (`) found in the name. Please try again and choose another name."))
             await self.bot.reset_cooldown(ctx)
-            return await ctx.send(
-                _(
-                    "Illegal character (`) found in the name. Please try again and"
-                    " choose another name."
+            return
+
+        # Check if user exists in the second database and offer migration if needed
+        async with self.bot.second_pool.acquire() as conn:
+            result = await conn.fetchrow('SELECT "money", "xp" FROM profile WHERE "user" = $1', ctx.author.id)
+
+        if result:
+            money = result['money']
+            xp = result['xp']
+            money = min(money, 300000)
+            xp = min(xp, 5475604)
+
+            from discord import Embed
+            embed = Embed(
+                title="Migration Details",
+                description=(
+                    "Here's what will and won't be migrated to your new character:"
+                    "\n\n**Weapons:** Won't be migrated"
+                    "\n**Raid Stats:** Won't be migrated"
+                    "\n**Favor:** Won't be migrated"
+                    "\n**XP:** Will be migrated (Up to level 30 cap)"
+                    "\n**Money:** Will be migrated ($300,000 Max)"
+                    "\n\nYou will only be given this option once."
+                ),
+                color=0x00ff00  # You can customize the color as needed
+            )
+
+            # Send the embed message
+            await ctx.send(embed=embed)
+            Level = int(rpgtools.xptolevel(xp))
+            # Use ctx.confirm for migration confirmation
+            if not await ctx.confirm(
+                    _(
+                        "It looks like you already have data in Idle's database. Do you want to migrate your XP and money to this new character?"
+                        f"\n\nCharacter Level: **{Level}** with a small fortune of **${money}**."
+                    )
+            ):
+                await ctx.send(_("Migration cancelled. Creating your new character without migration."))
+                await self.create_character_without_migration(ctx, name)
+            else:
+                await self.migrate_and_create_character(ctx, name, xp, money)
+        else:
+            # Create the new character if no data exists in the second database
+            await self.create_character_without_migration(ctx, name)
+
+    async def create_character_without_migration(self, ctx, name):
+
+        async with self.bot.pool.acquire() as primary_conn:
+            async with primary_conn.transaction():
+                await primary_conn.execute(
+                    "INSERT INTO profile VALUES ($1, $2, $3, $4);",
+                    ctx.author.id,
+                    name,
+                    100,
+                    0,
                 )
-            )
+                await self.bot.create_item(
+                    name=_("Starter Sword"),
+                    value=0,
+                    type_="Sword",
+                    element="fire",
+                    damage=3.0,
+                    armor=0.0,
+                    owner=ctx.author,
+                    hand="any",
+                    equipped=True,
+                    conn=primary_conn,
+                )
+                await self.bot.create_item(
+                    name=_("Starter Shield"),
+                    value=0,
+                    type_="Shield",
+                    element="fire",
+                    damage=0.0,
+                    armor=3.0,
+                    owner=ctx.author,
+                    hand="left",
+                    equipped=True,
+                    conn=primary_conn,
+                )
+                await self.bot.log_transaction(
+                    ctx,
+                    from_=1,
+                    to=ctx.author.id,
+                    subject="Starting out",
+                    data={"Gold": 100},
+                    conn=primary_conn,
+                )
+                await primary_conn.execute(
+                    'UPDATE profile SET "discordtag" = $1 WHERE "user" = $2',
+                    str(ctx.author), ctx.author.id
+                )
 
-        async with self.bot.pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO profile VALUES ($1, $2, $3, $4);",
-                ctx.author.id,
-                name,
-                100,
-                0,
-            )
-            await self.bot.create_item(
-                name=_("Starter Sword"),
-                value=0,
-                type_="Sword",
-                element="fire",
-                damage=3.0,
-                armor=0.0,
-                owner=ctx.author,
-                hand="any",
-                equipped=True,
-                conn=conn,
-            )
-            await self.bot.create_item(
-                name=_("Starter Shield"),
-                value=0,
-                type_="Shield",
-                element="fire",
-                damage=0.0,
-                armor=3.0,
-                owner=ctx.author,
-                hand="left",
-                equipped=True,
-                conn=conn,
-            )
-            await self.bot.log_transaction(
-                ctx,
-                from_=1,
-                to=ctx.author.id,
-                subject="Starting out",
-                data={"Gold": 100},
-                conn=conn,
-            )
-        async with self.bot.pool.acquire() as conn:
-            async with conn.transaction():
-                user = await self.bot.fetch_user(ctx.author.id)
-
-                await conn.execute('UPDATE profile SET "discordtag" = $1 WHERE "user" = $2',
-                                   ctx.author.id, user)
+                async with self.bot.second_pool.acquire() as secondary_conn:
+                    await secondary_conn.execute('DELETE FROM profile WHERE "user" = $1', ctx.author.id)
 
         await ctx.send(
             _(
-                "Successfully added your character **{name}**! Now use"
+                "Successfully created your new character **{name}**! Now use"
                 " `{prefix}profile` to view your character!"
             ).format(name=name, prefix=ctx.clean_prefix)
         )
+
+    async def migrate_and_create_character(self, ctx, name, xp, money):
+        try:
+            Level = int(rpgtools.xptolevel(xp))
+            Statpoints = Level // 2
+            # Convert user ID to integer if needed
+            user_id = int(ctx.author.id)
+
+            async with self.bot.pool.acquire() as primary_conn:
+                async with primary_conn.transaction():
+                    await primary_conn.execute(
+                        'INSERT INTO profile ("user", name, xp, money, statpoints) VALUES ($1, $2, $3, $4, $5);',
+                        user_id,  # Integer
+                        name,
+                        xp,
+                        money,
+                        Statpoints,
+                    )
+                    await self.bot.create_item(
+                        name=_("Starter Sword"),
+                        value=0,
+                        type_="Sword",
+                        element="fire",
+                        damage=3.0,
+                        armor=0.0,
+                        owner=ctx.author,
+                        hand="any",
+                        equipped=True,
+                        conn=primary_conn,
+                    )
+                    await self.bot.create_item(
+                        name=_("Starter Shield"),
+                        value=0,
+                        type_="Shield",
+                        element="fire",
+                        damage=0.0,
+                        armor=3.0,
+                        owner=ctx.author,
+                        hand="left",
+                        equipped=True,
+                        conn=primary_conn,
+                    )
+                    await self.bot.log_transaction(
+                        ctx,
+                        from_=1,
+                        to=user_id,
+                        subject="Starting out",
+                        data={"Gold": 100},
+                        conn=primary_conn,
+                    )
+                    await primary_conn.execute(
+                        'UPDATE profile SET "discordtag" = $1 WHERE "user" = $2',
+                        str(ctx.author),  # Integer
+                        user_id
+                    )
+
+            # Delete data from the second database
+            async with self.bot.second_pool.acquire() as secondary_conn:
+                await secondary_conn.execute('DELETE FROM profile WHERE "user" = $1', user_id)
+
+            await ctx.send(
+                _(
+                    "Successfully migrated your data and created your new character **{name}**! Now use"
+                    " `{prefix}profile` to view your character!"
+                ).format(name=name, prefix=ctx.clean_prefix)
+            )
+        except Exception as e:
+            import traceback
+            error_message = f"Error occurred: {e}\n"
+            error_message += traceback.format_exc()
+            await ctx.send(error_message)
+            print(error_message)
+
+    @is_gm()
+    @commands.command(name="check_user", brief="Check if your ID exists in the second database")
+    async def check_user(self, ctx):
+        user_id = ctx.author.id
+
+        # Acquire a connection from the second database pool
+        async with self.bot.second_pool.acquire() as conn:
+            # Check if the user's ID exists in the `profile` table
+            result = await conn.fetchval('SELECT 1 FROM profile WHERE "user" = $1', user_id)
+
+        if result:
+            await ctx.send(f"Your ID `{user_id}` exists in the second database!")
+        else:
+            await ctx.send(f"Your ID `{user_id}` does not exist in the second database.")
+
 
     @commands.command(name="profilepref")
     async def profilepref_command(self, ctx, preference: int):
@@ -568,12 +706,13 @@ class Profile(commands.Cog):
             else:
                 badges = []
 
+
             async with self.bot.trusted_session.post(
                     f"ttp://127.0.0.1:3010/api/genprofile",
                     json={
                         "name": profile['name'],
                         "color": color,
-                        "image": 0,
+                        "image": profile["background"],
                         "race": profile['race'],
                         "classes": profile['class'],
                         "profession": "None",
@@ -1233,12 +1372,14 @@ class Profile(commands.Cog):
 
         return result
 
+    from discord import Embed
+
     @checks.has_char()
     @commands.command(aliases=["sp"], brief=_("Show your gear items"))
     @locale_doc
     async def statpoints(self, ctx):
-        # Fetch stat points for the user
-        query = 'SELECT "statpoints" FROM profile WHERE "user" = $1;'
+        # Fetch stat points and stats for the user
+        query = 'SELECT "statpoints", "statatk", "statdef", "stathp" FROM profile WHERE "user" = $1;'
         result = await self.bot.pool.fetch(query, ctx.author.id)
         if not result:
             await ctx.send("No character data found.")
@@ -1246,6 +1387,9 @@ class Profile(commands.Cog):
 
         player_data = result[0]
         points = player_data["statpoints"]
+        atk = player_data["statatk"]
+        def_ = player_data["statdef"]
+        hp = player_data["stathp"]
 
         # Creating a clean and structured embed
         embed = Embed(title="Stat Points", description="Overview of your stat points and how to redeem them.",
@@ -1258,6 +1402,9 @@ class Profile(commands.Cog):
                         inline=False)
         embed.add_field(name="Bonuses",
                         value="Raider bonuses:\n- **Attack**: `+0.1`\n- **Defense**: `+0.1`\n- **Health**: `+50`",
+                        inline=False)
+        embed.add_field(name="Stat Allocation",
+                        value=f"**Attack**: {atk}\n**Defense**: {def_}\n**Health**: {hp}",
                         inline=False)
         embed.set_footer(text="Ensure you have sufficient stat points before redeeming.")
 
@@ -1719,8 +1866,8 @@ class Profile(commands.Cog):
             main2 = item2[stat]
             max_ = item[stat] + 5
             main_hand = item["hand"]
-            if (main > 40 and main_hand != "both") or (
-                    main > 81 and main_hand == "both"
+            if (main > 60 and main_hand != "both") or (
+                    main > 122 and main_hand == "both"
             ):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(
@@ -1776,13 +1923,13 @@ class Profile(commands.Cog):
                 )
             if item["type"] != "Shield":
                 stattoupgrade = "damage"
-                pricetopay = int(item["damage"] * 250)
+                pricetopay = int(item["damage"] * 1500)
             elif item["type"] == "Shield":
                 stattoupgrade = "armor"
-                pricetopay = int(item["armor"] * 250)
+                pricetopay = int(item["armor"] * 1500)
             stat = int(item[stattoupgrade])
             hand = item["hand"]
-            if (stat > 40 and hand != "both") or (stat > 81 and hand == "both"):
+            if (stat > 60 and hand != "both") or (stat > 122 and hand == "both"):
                 await self.bot.reset_cooldown(ctx)
                 return await ctx.send(
                     _("Your weapon already reached the maximum upgrade level.")
