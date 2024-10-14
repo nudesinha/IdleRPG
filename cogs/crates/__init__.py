@@ -319,49 +319,50 @@ class Crates(commands.Cog):
                         rand = random.randint(0, 9)
                         if rarity == "common":
                             if rand < 2:  # 20% 20-30
-                                minstat, maxstat = (20, 30)
+                                minstat, maxstat = (20, 41)
                             elif rand < 5:  # 30% 10-19
                                 minstat, maxstat = (10, 19)
                             else:  # 50% 1-9
                                 minstat, maxstat = (1, 9)
                         elif rarity == "uncommon":
                             if rand < 2:  # 20% 30-35
-                                minstat, maxstat = (30, 35)
+                                minstat, maxstat = (30, 41)
                             elif rand < 5:  # 30% 20-29
                                 minstat, maxstat = (20, 29)
                             else:  # 50% 10-19
                                 minstat, maxstat = (10, 19)
                         elif rarity == "rare":
                             if rand < 2:  # 20% 35-40
-                                minstat, maxstat = (35, 40)
+                                minstat, maxstat = (35, 50)
                             elif rand < 5:  # 30% 30-34
                                 minstat, maxstat = (30, 34)
                             else:  # 50% 20-29
                                 minstat, maxstat = (20, 29)
                         elif rarity == "magic":
                             if rand < 2:  # 20% 41-45
-                                minstat, maxstat = (41, 45)
+                                minstat, maxstat = (46, 60)
                             elif rand < 5:  # 30% 35-40
-                                minstat, maxstat = (35, 40)
+                                minstat, maxstat = (35, 45)
                             else:
                                 minstat, maxstat = (30, 34)
-                        elif rarity == "legendary":  # no else because why
-                            if rand < 2:  # 20% 49-50
-                                minstat, maxstat = (49, 55)
-                            elif rand < 5:  # 30% 46-48
-                                minstat, maxstat = (46, 48)
+                        elif rarity == "legendary":  
+                            rand = random.randint(0, 30)# no else because why
+                            if rand < 1:  # 20% 49-50
+                                minstat, maxstat = (50, 100)
+                            elif rand < 7:  # 30% 46-48
+                                minstat, maxstat = (41, 75)
                             else:  # 50% 41-45
-                                minstat, maxstat = (41, 45)
+                                minstat, maxstat = (41, 60)
                         elif rarity == "divine":
                             rand = random.randint(0, 30)
                             if rand < 2:  # 20% 49-50
-                                minstat, maxstat = (60, 100)
+                                minstat, maxstat = (75, 100)
                             elif rand < 10:  # 20% 49-50
-                                minstat, maxstat = (57, 75)
+                                minstat, maxstat = (70, 75)
                             elif rand < 15:  # 30% 46-48
-                                minstat, maxstat = (52, 56)
+                                minstat, maxstat = (60, 69)
                             else:  # 50% 41-45
-                                minstat, maxstat = (47, 51)
+                                minstat, maxstat = (51, 59)
 
                         item = await self.bot.create_random_item(
                             minstat=minstat,
